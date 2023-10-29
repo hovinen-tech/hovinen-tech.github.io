@@ -1,0 +1,15 @@
+---
+---
+
+footer .menu {
+    display: flex;
+    position: absolute;
+    padding-bottom: 20px;
+    right: 15vw;
+
+    li {
+        list-style: none;
+        padding-left: 5px;
+        padding-right: 5px;
+    }
+}
