@@ -1,0 +1,21 @@
+body {
+    background: none;
+}
+
+body.disable-scrolling {
+    overflow: hidden;
+}
+
+main {
+    padding: 5px;
+}
+
+article.node--type-landing-page {
+    display: none;
+}
+
+.section {
+    display: block;
+    position: relative;
+    margin-bottom: 50px;
+}
