@@ -12,7 +12,11 @@
     }
 }
 
-.nav-item {
+.dropdown-item {
+    display: block;
+}
+
+.nav-item,.dropdown-item {
     padding: 20px;
     font-weight: bold;
 
@@ -21,14 +25,6 @@
         cursor: pointer;
         position: relative;
         text-decoration: none;
-    }
-
-    button {
-        cursor: pointer;
-        text-align: start;
-        border: 0;
-        background: transparent;
-        padding: 1em 1.5em;
     }
 }
 
