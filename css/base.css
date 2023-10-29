@@ -10,10 +10,6 @@ main {
     padding: 5px;
 }
 
-article.node--type-landing-page {
-    display: none;
-}
-
 .section {
     display: block;
     position: relative;
