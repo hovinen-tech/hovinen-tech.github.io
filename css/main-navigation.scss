@@ -28,6 +28,10 @@
     }
 }
 
+.nav-item.active,.dropdown-item.active {
+    background-color: #ddd;
+}
+
 li.nav-item {
     list-style-type: none;
 
