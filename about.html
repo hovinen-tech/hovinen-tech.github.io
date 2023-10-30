@@ -6,29 +6,7 @@
   {% include head.html %}
 
   <body class="container">
-    <nav class="navbar navbar-expand-lg navbar-default">
-      <button class="navbar-toggler d-lg-none" type="button" data-bs-toggle="collapse" data-bs-target="#mainNavigation" aria-controls="mainNavigation" aria-expanded="false" aria-label="Toggle navigation">
-        <span class="navbar-toggler-icon"></span>
-      </button>
-      <div class="collapse navbar-collapse" id="mainNavigation">
-        <ul class="navbar-nav mr-auto d-md-flex">
-          <li class="nav-item"><a href="index.html" class="nav-link">Home</a></li>
-          <li class="nav-item active"><span class="nav-link">About me</span></li>
-          <li class="nav-item"><a href="https://github.com/hovinen" class="nav-link"><i class="fab fa-github"></i></a></li>
-          <li class="nav-item"><a href="https://www.linkedin.com/in/bradford-hovinen-326475284/" class="nav-link"><i class="fab fa-linkedin"></i></a></a></li>
-          <li class="nav-item"><a href="https://fosstodon.org/@hovinen" class="nav-link">Mastodon <i class="fas fa-external-link"></i></a></li>
-          <li class="nav-item"><a href="https://gruebelinchen.wordpress.com" class="nav-link">Blog <i class="fas fa-external-link"></i></a></li>
-          <li class="nav-item"><a href="#contact" class="nav-link">Contact</a></li>
-          <li class="nav-item dropdown">
-            <a href="#" class="dropdown-toggle nav-link" id="navbarDropdown" data-bs-toggle="dropdown" role="button" aria-expanded="false">Language <i class="fas fa-caret-down"></i></a>
-            <div class="dropdown-menu navbar-default" aria-labelledby="navbarDropdown">
-              <span class="dropdown-item active">English</span>
-              <a href="de/about.html" class="dropdown-item">German</a>
-            </div>
-          </li>
-        </ul>
-      </div>
-    </nav>
+    {% include navbar.html current_page="about" %}
 
     <main role="main" class="container">
       <h1>About me</h1>
