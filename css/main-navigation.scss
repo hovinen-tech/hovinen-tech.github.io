@@ -1,15 +1,8 @@
 ---
 ---
 
-.navbar {
-    display: flex;
+#mainNavigation {
     justify-content: flex-end;
-}
-
-@media only screen and (min-width: 43.75rem) {
-    .navbar > ul {
-        display: flex;
-    }
 }
 
 .dropdown-item {

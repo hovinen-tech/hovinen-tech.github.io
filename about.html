@@ -7,8 +7,10 @@
 
     <title>Bradford Hovinen, IT-Freelancer</title>
 
-    <link rel="stylesheet" href="css/bootstrap/bootstrap-theme.min.css">
     <link rel="stylesheet" href="css/bootstrap/bootstrap.min.css">
+    <link rel="stylesheet" href="css/bootstrap/bootstrap-grid.min.css">
+    <link rel="stylesheet" href="css/bootstrap/bootstrap-reboot.min.css">
+    <link rel="stylesheet" href="css/bootstrap/bootstrap-utilities.min.css">
     <link rel="stylesheet" href="css/base.css">
     <link rel="stylesheet" href="css/main-banner.css">
     <link rel="stylesheet" href="css/main-navigation.css">
@@ -20,21 +22,24 @@
   </head>
 
   <body class="container">
-    <nav class="navbar navbar-default">
-      <div class="collapse navbar-collapse" id="navbarSupportedContent">
-        <ul class="navbar-nav mr-auto">
+    <nav class="navbar navbar-expand-lg navbar-default">
+      <button class="navbar-toggler d-lg-none" type="button" data-bs-toggle="collapse" data-bs-target="#mainNavigation" aria-controls="mainNavigation" aria-expanded="false" aria-label="Toggle navigation">
+        <span class="navbar-toggler-icon"></span>
+      </button>
+      <div class="collapse navbar-collapse" id="mainNavigation">
+        <ul class="navbar-nav mr-auto d-md-flex">
           <li class="nav-item"><a href="index.html" class="nav-link">Home</a></li>
-          <li class="nav-item active">About me</li>
+          <li class="nav-item active"><span class="nav-link">About me</span></li>
           <li class="nav-item"><a href="https://github.com/hovinen" class="nav-link"><i class="fab fa-github"></i></a></li>
           <li class="nav-item"><a href="https://www.linkedin.com/in/bradford-hovinen-326475284/" class="nav-link"><i class="fab fa-linkedin"></i></a></a></li>
           <li class="nav-item"><a href="https://fosstodon.org/@hovinen" class="nav-link">Mastodon <i class="fas fa-external-link"></i></a></li>
           <li class="nav-item"><a href="https://gruebelinchen.wordpress.com" class="nav-link">Blog <i class="fas fa-external-link"></i></a></li>
           <li class="nav-item"><a href="#contact" class="nav-link">Contact</a></li>
           <li class="nav-item dropdown">
-            <a href="#" class="dropdown-toggle nav-link" id="navbarDropdown" data-toggle="dropdown" role="button" aria-haspopup="true" aria-expanded="false">Language</a>
+            <a href="#" class="dropdown-toggle nav-link" id="navbarDropdown" data-bs-toggle="dropdown" role="button" aria-expanded="false">Language</a>
             <div class="dropdown-menu navbar-default" aria-labelledby="navbarDropdown">
               <span class="dropdown-item active">English</span>
-              <a href="de/" class="dropdown-item">German</a>
+              <a href="de/about.html" class="dropdown-item">German</a>
             </div>
           </li>
         </ul>
@@ -108,22 +113,23 @@
       </section>
     </main>
 
-    <footer class="row section">
-      <div class="col-md-3">
-        Copyright 2023 Bradford Hovinen
+    <footer class="section container">
+      <div class="row">
+        <div class="col-md-6">
+          Copyright 2023 Bradford Hovinen
+        </div>
+        <nav class="col-md-6 menu">
+          <ul>
+            <li><a href="imprint.html">Imprint</a></li>
+            <li><a href="privacy.html">Privacy policy</a></li>
+          </ul>
+        </nav>
       </div>
-      <nav class="col-md-3 menu">
-        <ul>
-          <li><a href="imprint.html">Imprint</a></li>
-          <li><a href="privacy.html">Privacy policy</a></li>
-        </ul>
-      </nav>
     </footer>
 
     <!-- jQuery (necessary for Bootstrap's JavaScript plugins) -->
     <script src="https://code.jquery.com/jquery-1.12.4.min.js" integrity="sha384-nvAa0+6Qg9clwYCGGPpDQLVpLNn0fRaROjHqs13t4Ggj3Ez50XnGQqc/r8MhnRDZ" crossorigin="anonymous"></script>
-    <script src="js/popper/popper.min.js"></script>
-    <script src="js/bootstrap/bootstrap.min.js"></script>
+    <script src="js/bootstrap/bootstrap.bundle.min.js"></script>
     <script src="js/fontsawesome/fontawesome.min.js"></script>
     <script src="js/fontsawesome/solid.min.js"></script>
     <script src="js/fontsawesome/brands.min.js"></script>
