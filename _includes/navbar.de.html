@@ -15,7 +15,7 @@
         {% if include.current_page == "about" %}
         <span class="nav-link">Über mich</span>
         {% else %}
-        <a href="about.html" class="nav-link">Über mich</a>
+        <a href="about.de.html" class="nav-link">Über mich</a>
         {% endif %}
       </li>
       <li class="nav-item"><a href="https://github.com/hovinen" class="nav-link"><i class="fab fa-github"></i></a></li>
@@ -26,7 +26,7 @@
       <li class="nav-item dropdown">
         <a href="#" class="dropdown-toggle nav-link" id="navbarDropdown" data-bs-toggle="dropdown" role="button" aria-expanded="false">Sprache <i class="fas fa-caret-down"></i></a>
         <div class="dropdown-menu navbar-default" aria-labelledby="navbarDropdown">
-          <a href="index.html" class="dropdown-item">Englisch</a>
+          <a href="{{ include.current_page }}.html" class="dropdown-item">Englisch</a>
           <span class="dropdown-item active">Deutsch</span>
         </div>
       </li>
