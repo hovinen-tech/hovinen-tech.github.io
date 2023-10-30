@@ -19,23 +19,41 @@
     }
 }
 
+.small-links {
+    display: flex;
+    justify-content: center;
+    padding-bottom: 20px;
+    top: calc(0.3 * 50vh + 10.0 * 1.125rem);
+}
+
+.small-banner-link {
+    display: block;
+    padding-left: 20px;
+    padding-right: 20px;
+
+    a {
+        color: #000;
+    }
+}
+
 @media only screen and (min-width: 43.75rem) {
     #banner {
         height: 50vh;
         position: relative;
 
         h1 {
-            left: 50px;
             max-width: calc(70% - 65px);
-            position: absolute;
             top: calc(0.3 * 50vh);
         }
 
-        .subtitle {
+        .item {
             left: 50px;
             max-width: calc(70% - 70px);
             position: absolute;
-            top: calc(0.3 * 50vh + 7.0 * 1.125rem);
+        }
+
+        .subtitle {
+            top: calc(0.3 * 50vh + 6.0 * 1.125rem);
         }
 
         .picture {
