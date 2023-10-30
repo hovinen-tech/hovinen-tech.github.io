@@ -225,7 +225,38 @@
 
       <section id="contact" class="section">
         <div class="col-md-12">
-          <h2>Coming soon</h2>
+          <h2>Reach out</h2>
+
+          <form method="post" action="https://rake.red/api/hovinen-tech/contact">
+            <div class="mb-3">
+              <label for="name" class="form-label">Name</label>
+              <input id="name" type="text" name="name" class="form-control" />
+            </div>
+
+            <div class="mb-3">
+              <label for="email" class="form-label">Email</label>
+              <input id="email" type="email" name="email" class="form-control" required />
+            </div>
+
+            <div class="mb-3">
+              <label for="subject" class="form-label">Subject</label>
+              <input id="subject" type="text" name="subject" class="form-control" required />
+            </div>
+
+            <div class="mb-3">
+              <label for="message" class="form-label">Message</label>
+              <textarea id="message" name="message" class="form-control" rows="5"></textarea>
+            </div>
+
+            <div class="mb-3">
+              <input type="checkbox" id="gdpr-consent" name="gdpr_consent" class="form-check-input" value="1" required="required" aria-required="true">
+              <label for="gdpr-consent">
+                I consent to having the above data stored for the purpose of responding to my request.
+              </label>
+            </div>
+
+            <button type="submit" class="btn btn-primary">Send</button>
+          </form>
         </div>
       </section>
     </main>
