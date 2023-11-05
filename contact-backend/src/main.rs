@@ -33,14 +33,20 @@ async fn send_message(
     state: web::Data<State>,
 ) -> impl Responder {
     info!("Got message {message:?}");
-    let reply_to_string = if let Some(name) = message.name.clone() {
-        format!("{} <{}>", name, message.email)
+    let ContactFormMessage {
+        name,
+        email,
+        subject,
+        body,
+    } = message.0;
+    let reply_to_string = if let Some(name) = name {
+        format!("{} <{}>", name, email)
     } else {
-        message.email.clone()
+        email.clone()
     };
     let Ok(reply_to_email) = reply_to_string.parse() else {
         return (
-            Cow::from(format!("Bad email: {}", message.email)),
+            Cow::from(format!("Bad email: {}", email)),
             StatusCode::BAD_REQUEST,
         );
     };
@@ -48,9 +54,9 @@ async fn send_message(
         .from(FROM_ADDRESS.clone())
         .reply_to(reply_to_email)
         .to(TO_ADDRESS.clone())
-        .subject(message.subject.clone())
+        .subject(subject)
         .header(ContentType::TEXT_PLAIN)
-        .body(message.body.clone())
+        .body(body)
         .unwrap();
     match state.mailer.send(email).await {
         Ok(_) => (Cow::from("Message successfully sent"), StatusCode::OK),
