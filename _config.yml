@@ -28,6 +28,7 @@
 #
 exclude:
   - contact-backend
+  - send-contact-form-message
 #   - .sass-cache/
 #   - .jekyll-cache/
 #   - gemfiles/
