@@ -2,6 +2,7 @@ use lambda_http::{run, service_fn, Body, Error, Request, RequestPayloadExt, Resp
 use lazy_static::lazy_static;
 use lettre::{
     message::{header::ContentType, Mailbox},
+    transport::smtp::authentication::Credentials,
     AsyncSmtpTransport, AsyncTransport, Message, Tokio1Executor,
 };
 use serde::Deserialize;
@@ -15,9 +16,8 @@ lazy_static! {
     static ref TO_ADDRESS: Mailbox = "Bradford Hovinen <hovinen@localhost>".parse().unwrap();
 }
 
-const SMTP_HOST: &'static str = "email.eu-north-1.amazonaws.com";
-const SMTP_USERNAME_KEY: &'static str = "SMTP_USERNAME";
-const SMTP_PASSWORD_KEY: &'static str = "SMTP_PASSWORD";
+const SMTP_URL: &'static str = "smtps://email.eu-north-1.amazonaws.com";
+const SMTP_CREDENTIALS_NAME: &'static str = "smtp-ses-credentials";
 
 #[tokio::main]
 async fn main() -> Result<(), Error> {
@@ -129,34 +129,34 @@ async fn get_mailer() -> Arc<AsyncSmtpTransport<Tokio1Executor>> {
     }
 }
 
-async fn initialise_mailer() -> Result<AsyncSmtpTransport<Tokio1Executor>, Error> {
-    let config = aws_config::load_from_env().await;
-    let secrets_client = aws_sdk_secretsmanager::Client::new(&config);
-
-    let smtp_username_secret = secrets_client
-        .get_secret_value()
-        .secret_id(SMTP_USERNAME_KEY)
-        .send()
-        .await?;
-    let Some(smtp_username) = smtp_username_secret.secret_string() else {
-        return Err(Box::new(EnvironmentError::MissingSecret(SMTP_USERNAME_KEY)));
-    };
-
-    let smtp_password_secret = secrets_client
-        .get_secret_value()
-        .secret_id(SMTP_PASSWORD_KEY)
-        .send()
-        .await?;
-    let Some(smtp_password) = smtp_password_secret.secret_string() else {
-        return Err(Box::new(EnvironmentError::MissingSecret(SMTP_PASSWORD_KEY)));
-    };
-
-    Ok(AsyncSmtpTransport::<Tokio1Executor>::from_url(
-        create_smtp_url(smtp_username, smtp_password).as_str(),
-    )?
-    .build())
+#[derive(Deserialize)]
+struct SmtpCredentials {
+    #[serde(rename = "SMTP_USERNAME")]
+    username: String,
+    #[serde(rename = "SMTP_PASSWORD")]
+    password: String,
 }
 
-fn create_smtp_url(username: &str, password: &str) -> String {
-    format!("smtps://{username}:{password}@{SMTP_HOST}")
+async fn initialise_mailer() -> Result<AsyncSmtpTransport<Tokio1Executor>, Error> {
+    let config = aws_config::from_env().region("eu-north-1").load().await;
+    let secrets_client = aws_sdk_secretsmanager::Client::new(&config);
+
+    let smtp_credentials_secret = secrets_client
+        .get_secret_value()
+        .secret_id(SMTP_CREDENTIALS_NAME)
+        .send()
+        .await?;
+    let Some(smtp_credentials) = smtp_credentials_secret.secret_string() else {
+        return Err(Box::new(EnvironmentError::MissingSecret(
+            SMTP_CREDENTIALS_NAME,
+        )));
+    };
+    let parsed_credentials: SmtpCredentials = serde_json::from_str(smtp_credentials)?;
+
+    Ok(AsyncSmtpTransport::<Tokio1Executor>::from_url(SMTP_URL)?
+        .credentials(Credentials::new(
+            parsed_credentials.username,
+            parsed_credentials.password,
+        ))
+        .build())
 }
