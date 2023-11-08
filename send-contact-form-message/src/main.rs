@@ -8,7 +8,6 @@ use lettre::{
 use serde::Deserialize;
 use std::{fmt::Display, sync::Arc};
 use tokio::sync::Mutex;
-use tracing::info;
 
 lazy_static! {
     static ref MAILER: Mutex<Option<Arc<AsyncSmtpTransport<Tokio1Executor>>>> = Mutex::new(None);
@@ -90,7 +89,6 @@ async fn send_message(message: ContactFormMessage) -> Result<(), MessageError> {
         .header(ContentType::TEXT_PLAIN)
         .body(body)
         .map_err(MessageError::BadMessage)?;
-    info!("Sending mail: {email:?}");
     match get_mailer().await.send(email).await {
         Ok(_) => Ok(()),
         Err(e) => Err(MessageError::SendError(e)),
