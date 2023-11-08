@@ -16,7 +16,7 @@ lazy_static! {
     static ref TO_ADDRESS: Mailbox = "Bradford Hovinen <hovinen@gmail.com>".parse().unwrap();
 }
 
-const SMTP_URL: &'static str = "smtps://email.eu-north-1.amazonaws.com";
+const SMTP_URL: &'static str = "smtps://email-smtp.eu-north-1.amazonaws.com";
 const SMTP_CREDENTIALS_NAME: &'static str = "smtp-ses-credentials";
 
 #[tokio::main]
@@ -60,8 +60,6 @@ impl std::fmt::Display for MessageError {
 impl std::error::Error for MessageError {}
 
 async fn function_handler(event: Request) -> Result<Response<Body>, Error> {
-    info!("event body: {:?}", event.body());
-    info!("event headers: {:?}", event.headers());
     let Some(message) = event.payload()? else {
         return Err(Box::new(MessageError::MissingPayload));
     };
@@ -92,6 +90,7 @@ async fn send_message(message: ContactFormMessage) -> Result<(), MessageError> {
         .header(ContentType::TEXT_PLAIN)
         .body(body)
         .map_err(MessageError::BadMessage)?;
+    info!("Sending mail: {email:?}");
     match get_mailer().await.send(email).await {
         Ok(_) => Ok(()),
         Err(e) => Err(MessageError::SendError(e)),
