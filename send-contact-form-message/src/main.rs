@@ -15,7 +15,7 @@ lazy_static! {
     static ref TO_ADDRESS: Mailbox = "Bradford Hovinen <hovinen@localhost>".parse().unwrap();
 }
 
-const SMTP_HOST: &'static str = "";
+const SMTP_HOST: &'static str = "email.eu-north-1.amazonaws.com";
 const SMTP_USERNAME_KEY: &'static str = "SMTP_USERNAME";
 const SMTP_PASSWORD_KEY: &'static str = "SMTP_PASSWORD";
 
