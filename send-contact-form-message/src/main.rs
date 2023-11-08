@@ -13,7 +13,7 @@ use tracing::info;
 lazy_static! {
     static ref MAILER: Mutex<Option<Arc<AsyncSmtpTransport<Tokio1Executor>>>> = Mutex::new(None);
     static ref FROM_ADDRESS: Mailbox = "Web contact form <noreply@hovinen.tech>".parse().unwrap();
-    static ref TO_ADDRESS: Mailbox = "Bradford Hovinen <hovinen@localhost>".parse().unwrap();
+    static ref TO_ADDRESS: Mailbox = "Bradford Hovinen <hovinen@gmail.com>".parse().unwrap();
 }
 
 const SMTP_URL: &'static str = "smtps://email.eu-north-1.amazonaws.com";
