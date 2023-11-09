@@ -18,6 +18,8 @@ lazy_static! {
 const SMTP_URL: &'static str = "smtps://email-smtp.eu-north-1.amazonaws.com";
 const SMTP_CREDENTIALS_NAME: &'static str = "smtp-ses-credentials";
 
+const BASE_HOST: &'static str = "hovinen-tech.github.io";
+
 #[tokio::main]
 async fn main() -> Result<(), Error> {
     tracing_subscriber::fmt()
@@ -35,6 +37,7 @@ struct ContactFormMessage {
     email: String,
     subject: String,
     body: String,
+    language: String,
 }
 
 #[derive(Debug)]
@@ -62,16 +65,21 @@ async fn function_handler(event: Request) -> Result<Response<Body>, Error> {
     let Some(message) = event.payload()? else {
         return Err(Box::new(MessageError::MissingPayload));
     };
-    send_message(message).await.map_err(Box::new)?;
-    Ok(Response::builder().status(200).body("".into()).unwrap())
+    let language = send_message(message).await.map_err(Box::new)?;
+    Ok(Response::builder()
+        .status(303)
+        .header("Location", create_success_url(language.as_str()))
+        .body("".into())
+        .unwrap())
 }
 
-async fn send_message(message: ContactFormMessage) -> Result<(), MessageError> {
+async fn send_message(message: ContactFormMessage) -> Result<String, MessageError> {
     let ContactFormMessage {
         name,
         email,
         subject,
         body,
+        language,
     } = message;
     let reply_to_string = if let Some(name) = name {
         format!("{} <{}>", name, email)
@@ -90,7 +98,7 @@ async fn send_message(message: ContactFormMessage) -> Result<(), MessageError> {
         .body(body)
         .map_err(MessageError::BadMessage)?;
     match get_mailer().await.send(email).await {
-        Ok(_) => Ok(()),
+        Ok(_) => Ok(language),
         Err(e) => Err(MessageError::SendError(e)),
     }
 }
@@ -156,4 +164,12 @@ async fn initialise_mailer() -> Result<AsyncSmtpTransport<Tokio1Executor>, Error
             parsed_credentials.password,
         ))
         .build())
+}
+
+fn create_success_url(language: &str) -> String {
+    if language == "en" {
+        format!("https://{BASE_HOST}/email-sent.html")
+    } else {
+        format!("https://{BASE_HOST}/email-sent.{language}.html")
+    }
 }
