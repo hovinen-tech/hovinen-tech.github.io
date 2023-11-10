@@ -7,12 +7,12 @@ use lettre::{
 };
 use reqwest::Client;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
-use std::{fmt::Display, sync::Arc};
+use std::{fmt::Display, future::Future, sync::Arc};
 use tokio::sync::Mutex;
 
 lazy_static! {
     static ref MAILER: Mutex<Option<Arc<AsyncSmtpTransport<Tokio1Executor>>>> = Mutex::new(None);
-    static ref MCAPTCHA_DATA: Mutex<Option<FriendlyCaptchaData>> = Mutex::new(None);
+    static ref FRIENDLYCAPTCHA_DATA: Mutex<Option<FriendlyCaptchaData>> = Mutex::new(None);
     static ref FROM_ADDRESS: Mailbox = "Web contact form <noreply@hovinen.tech>".parse().unwrap();
     static ref TO_ADDRESS: Mailbox = "Bradford Hovinen <hovinen@hovinen.tech>".parse().unwrap();
 }
@@ -140,7 +140,7 @@ struct FriendlyCaptchaResponse {
 }
 
 async fn verify_friendlycaptcha_token(solution: String) -> Result<(), MessageError> {
-    let data = fetch_mcaptcha_data().await.unwrap();
+    let data = get_friendlycaptcha_data().await;
     let payload = FriendlyCaptchaVerifyPayload {
         solution,
         sitekey: data.sitekey,
@@ -162,16 +162,12 @@ async fn verify_friendlycaptcha_token(solution: String) -> Result<(), MessageErr
     }
 }
 
-async fn fetch_mcaptcha_data<'a>() -> Result<FriendlyCaptchaData, Error> {
-    let mut guard = MCAPTCHA_DATA.lock().await;
-    match &*guard {
-        Some(data) => Ok(data.clone()),
-        None => {
-            let data: FriendlyCaptchaData = fetch_secret(FRIENDLYCAPTCHA_DATA_NAME).await?;
-            *guard = Some(data.clone());
-            Ok(data)
-        }
-    }
+async fn get_friendlycaptcha_data() -> FriendlyCaptchaData {
+    get_memoized(&FRIENDLYCAPTCHA_DATA, || {
+        fetch_secret(FRIENDLYCAPTCHA_DATA_NAME)
+    })
+    .await
+    .unwrap()
 }
 
 #[derive(Debug)]
@@ -190,19 +186,7 @@ impl Display for EnvironmentError {
 impl std::error::Error for EnvironmentError {}
 
 async fn get_mailer() -> Arc<AsyncSmtpTransport<Tokio1Executor>> {
-    let mut guard = MAILER.lock().await;
-    match &*guard {
-        Some(mailer) => mailer.clone(),
-        None => {
-            let mailer = Arc::new(
-                initialise_mailer()
-                    .await
-                    .expect("Could not initialize mailer"),
-            );
-            *guard = Some(mailer.clone());
-            mailer
-        }
-    }
+    get_memoized(&MAILER, || initialise_mailer()).await.unwrap()
 }
 
 #[derive(Deserialize)]
@@ -213,15 +197,17 @@ struct SmtpCredentials {
     password: String,
 }
 
-async fn initialise_mailer() -> Result<AsyncSmtpTransport<Tokio1Executor>, Error> {
+async fn initialise_mailer() -> Result<Arc<AsyncSmtpTransport<Tokio1Executor>>, Error> {
     let parsed_credentials: SmtpCredentials = fetch_secret(SMTP_CREDENTIALS_NAME).await?;
 
-    Ok(AsyncSmtpTransport::<Tokio1Executor>::from_url(SMTP_URL)?
-        .credentials(Credentials::new(
-            parsed_credentials.username,
-            parsed_credentials.password,
-        ))
-        .build())
+    Ok(Arc::new(
+        AsyncSmtpTransport::<Tokio1Executor>::from_url(SMTP_URL)?
+            .credentials(Credentials::new(
+                parsed_credentials.username,
+                parsed_credentials.password,
+            ))
+            .build(),
+    ))
 }
 
 async fn fetch_secret<T: DeserializeOwned>(name: &'static str) -> Result<T, Error> {
@@ -244,5 +230,20 @@ fn create_success_url(language: &str) -> String {
         format!("https://{BASE_HOST}/email-sent.html")
     } else {
         format!("https://{BASE_HOST}/email-sent.{language}.html")
+    }
+}
+
+async fn get_memoized<T: Clone, F: Future<Output = Result<T, Error>>>(
+    mutex: &Mutex<Option<T>>,
+    factory: impl FnOnce() -> F,
+) -> Result<T, Error> {
+    let mut guard = mutex.lock().await;
+    match &*guard {
+        Some(data) => Ok(data.clone()),
+        None => {
+            let data: T = factory().await?;
+            *guard = Some(data.clone());
+            Ok(data)
+        }
     }
 }
