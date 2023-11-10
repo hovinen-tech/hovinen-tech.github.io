@@ -135,6 +135,7 @@ struct FriendlyCaptchaVerifyPayload {
 #[derive(Deserialize)]
 struct FriendlyCaptchaResponse {
     success: bool,
+    #[serde(default)]
     errors: Vec<String>,
 }
 
