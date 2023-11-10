@@ -5,18 +5,23 @@ use lettre::{
     transport::smtp::authentication::Credentials,
     AsyncSmtpTransport, AsyncTransport, Message, Tokio1Executor,
 };
-use serde::Deserialize;
+use reqwest::Client;
+use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use std::{fmt::Display, sync::Arc};
 use tokio::sync::Mutex;
 
 lazy_static! {
     static ref MAILER: Mutex<Option<Arc<AsyncSmtpTransport<Tokio1Executor>>>> = Mutex::new(None);
+    static ref MCAPTCHA_DATA: Mutex<Option<MCaptchaData>> = Mutex::new(None);
     static ref FROM_ADDRESS: Mailbox = "Web contact form <noreply@hovinen.tech>".parse().unwrap();
     static ref TO_ADDRESS: Mailbox = "Bradford Hovinen <hovinen@hovinen.tech>".parse().unwrap();
 }
 
 const SMTP_URL: &'static str = "smtps://email-smtp.eu-north-1.amazonaws.com";
 const SMTP_CREDENTIALS_NAME: &'static str = "smtp-ses-credentials";
+
+const MCAPTCHA_DATA_NAME: &'static str = "mcaptcha-data";
+const MCAPTCHA_VERIFY_URL: &'static str = "https://demo.mcaptha.org/api/v1/pow/siteverify";
 
 const BASE_HOST: &'static str = "hovinen-tech.github.io";
 
@@ -38,6 +43,8 @@ struct ContactFormMessage {
     subject: String,
     body: String,
     language: String,
+    #[serde(rename = "mcaptcha__token")]
+    mcaptcha_token: String,
 }
 
 #[derive(Debug)]
@@ -46,6 +53,7 @@ enum MessageError {
     BadMessage(lettre::error::Error),
     SendError(lettre::transport::smtp::Error),
     MissingPayload,
+    McaptchaTokenError,
 }
 
 impl std::fmt::Display for MessageError {
@@ -55,6 +63,7 @@ impl std::fmt::Display for MessageError {
             MessageError::BadMessage(error) => write!(f, "Error building message: {error}"),
             MessageError::SendError(error) => write!(f, "Error sending message: {error}"),
             MessageError::MissingPayload => write!(f, "Event message is missing a payload"),
+            MessageError::McaptchaTokenError => write!(f, "mCaptcha token did not validate"),
         }
     }
 }
@@ -80,7 +89,9 @@ async fn send_message(message: ContactFormMessage) -> Result<String, MessageErro
         subject,
         body,
         language,
+        mcaptcha_token,
     } = message;
+    verify_mcaptcha_token(mcaptcha_token).await?;
     let reply_to_string = if let Some(name) = name {
         format!("{} <{}>", name, email)
     } else {
@@ -100,6 +111,61 @@ async fn send_message(message: ContactFormMessage) -> Result<String, MessageErro
     match get_mailer().await.send(email).await {
         Ok(_) => Ok(language),
         Err(e) => Err(MessageError::SendError(e)),
+    }
+}
+
+#[derive(Deserialize, Clone)]
+struct MCaptchaData {
+    #[serde(rename = "MCAPTCHA_KEY")]
+    key: String,
+    #[serde(rename = "MCAPTCHA_SECRET")]
+    secret: String,
+}
+
+#[derive(Serialize)]
+struct MCaptchaVerifyPayload {
+    token: String,
+    key: String,
+    secret: String,
+}
+
+#[derive(Deserialize)]
+struct MCaptchaResponse {
+    valid: bool,
+}
+
+async fn verify_mcaptcha_token(token: String) -> Result<(), MessageError> {
+    let data = fetch_mcaptcha_data().await.unwrap();
+    let payload = MCaptchaVerifyPayload {
+        token,
+        key: data.key,
+        secret: data.secret,
+    };
+    let response: MCaptchaResponse = Client::new()
+        .post(MCAPTCHA_VERIFY_URL)
+        .json(&payload)
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    if response.valid {
+        Ok(())
+    } else {
+        Err(MessageError::McaptchaTokenError)
+    }
+}
+
+async fn fetch_mcaptcha_data<'a>() -> Result<MCaptchaData, Error> {
+    let mut guard = MCAPTCHA_DATA.lock().await;
+    match &*guard {
+        Some(data) => Ok(data.clone()),
+        None => {
+            let data: MCaptchaData = fetch_secret(MCAPTCHA_DATA_NAME).await?;
+            *guard = Some(data.clone());
+            Ok(data)
+        }
     }
 }
 
@@ -143,20 +209,7 @@ struct SmtpCredentials {
 }
 
 async fn initialise_mailer() -> Result<AsyncSmtpTransport<Tokio1Executor>, Error> {
-    let config = aws_config::from_env().region("eu-north-1").load().await;
-    let secrets_client = aws_sdk_secretsmanager::Client::new(&config);
-
-    let smtp_credentials_secret = secrets_client
-        .get_secret_value()
-        .secret_id(SMTP_CREDENTIALS_NAME)
-        .send()
-        .await?;
-    let Some(smtp_credentials) = smtp_credentials_secret.secret_string() else {
-        return Err(Box::new(EnvironmentError::MissingSecret(
-            SMTP_CREDENTIALS_NAME,
-        )));
-    };
-    let parsed_credentials: SmtpCredentials = serde_json::from_str(smtp_credentials)?;
+    let parsed_credentials: SmtpCredentials = fetch_secret(SMTP_CREDENTIALS_NAME).await?;
 
     Ok(AsyncSmtpTransport::<Tokio1Executor>::from_url(SMTP_URL)?
         .credentials(Credentials::new(
@@ -164,6 +217,21 @@ async fn initialise_mailer() -> Result<AsyncSmtpTransport<Tokio1Executor>, Error
             parsed_credentials.password,
         ))
         .build())
+}
+
+async fn fetch_secret<T: DeserializeOwned>(name: &'static str) -> Result<T, Error> {
+    let config = aws_config::from_env().region("eu-north-1").load().await;
+    let secrets_client = aws_sdk_secretsmanager::Client::new(&config);
+
+    let secret = secrets_client
+        .get_secret_value()
+        .secret_id(name)
+        .send()
+        .await?;
+    let Some(secret_value) = secret.secret_string() else {
+        return Err(Box::new(EnvironmentError::MissingSecret(name)));
+    };
+    Ok(serde_json::from_str(secret_value)?)
 }
 
 fn create_success_url(language: &str) -> String {
