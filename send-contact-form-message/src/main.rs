@@ -41,16 +41,17 @@ async fn main() -> Result<(), Error> {
 #[derive(Deserialize, Debug)]
 struct ContactFormMessage {
     name: Option<String>,
-    email: String,
-    subject: String,
-    body: String,
-    language: String,
-    #[serde(rename = "frc-captcha-solution", default)]
-    friendlycaptcha_token: String,
+    email: Option<String>,
+    subject: Option<String>,
+    body: Option<String>,
+    language: Option<String>,
+    #[serde(rename = "frc-captcha-solution")]
+    friendlycaptcha_token: Option<String>,
 }
 
 #[derive(Debug)]
 enum MessageError {
+    MissingFieldsInRequest,
     BadEmail(String),
     BadMessage(lettre::error::Error),
     SendError(lettre::transport::smtp::Error),
@@ -61,6 +62,7 @@ enum MessageError {
 impl std::fmt::Display for MessageError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
+            MessageError::MissingFieldsInRequest => write!(f, "Missing fields in request"),
             MessageError::BadEmail(email) => write!(f, "Bad email: {email}"),
             MessageError::BadMessage(error) => write!(f, "Error building message: {error}"),
             MessageError::SendError(error) => write!(f, "Error sending message: {error}"),
@@ -78,23 +80,37 @@ async fn function_handler(event: Request) -> Result<Response<Body>, Error> {
     let Some(message) = event.payload()? else {
         return Err(Box::new(MessageError::MissingPayload));
     };
-    let language = send_message(message).await.map_err(Box::new)?;
-    Ok(Response::builder()
-        .status(303)
-        .header("Location", create_success_url(language.as_str()))
-        .body("".into())
-        .unwrap())
+    match send_message(message).await {
+        Ok(language) => Ok(Response::builder()
+            .status(303)
+            .header("Location", create_success_url(language.as_str()))
+            .body("".into())
+            .unwrap()),
+        Err(MessageError::MissingFieldsInRequest) => Ok(Response::builder()
+            .status(400)
+            .body("Malformed request: missing fields".into())
+            .unwrap()),
+        // TODO: This can happen without a bug on the contact form, so redirect to an error page.
+        Err(MessageError::BadEmail(email)) => Ok(Response::builder()
+            .status(400)
+            .body(format!("Malformed request: bad email address {email}").into())
+            .unwrap()),
+        Err(error) => Err(Box::new(error)),
+    }
 }
 
 async fn send_message(message: ContactFormMessage) -> Result<String, MessageError> {
     let ContactFormMessage {
         name,
-        email,
-        subject,
-        body,
-        language,
-        friendlycaptcha_token,
-    } = message;
+        email: Some(email),
+        subject: Some(subject),
+        body: Some(body),
+        language: Some(language),
+        friendlycaptcha_token: Some(friendlycaptcha_token),
+    } = message
+    else {
+        return Err(MessageError::MissingFieldsInRequest);
+    };
     verify_friendlycaptcha_token(friendlycaptcha_token).await?;
     let reply_to_string = if let Some(name) = name {
         format!("{} <{}>", name, email)
