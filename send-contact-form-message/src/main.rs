@@ -9,6 +9,7 @@ use reqwest::Client;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use std::{fmt::Display, future::Future, sync::Arc};
 use tokio::sync::Mutex;
+use tracing::warn;
 
 lazy_static! {
     static ref MAILER: Mutex<Option<Arc<AsyncSmtpTransport<Tokio1Executor>>>> = Mutex::new(None);
@@ -151,19 +152,33 @@ async fn verify_friendlycaptcha_token(solution: String) -> Result<(), MessageErr
         sitekey: data.sitekey,
         secret: data.secret,
     };
-    let response: FriendlyCaptchaResponse = Client::new()
+    let response = match Client::new()
         .post(FRIENDLYCAPTCHA_VERIFY_URL)
         .json(&payload)
         .send()
         .await
-        .unwrap()
-        .json()
-        .await
-        .unwrap();
-    if response.success {
+    {
+        Ok(response) => response,
+        Err(error) => {
+            warn!("Error verifying FriendlyCaptcha solution: {error}");
+            warn!("Letting request pass without verification.");
+            return Ok(());
+        }
+    };
+    let response_body: FriendlyCaptchaResponse = match response.json().await {
+        Ok(body) => body,
+        Err(error) => {
+            warn!("Error fetching body from FriendlyCaptcha: {error}");
+            warn!("Letting request pass without verification.");
+            return Ok(());
+        }
+    };
+    if response_body.success {
         Ok(())
     } else {
-        Err(MessageError::FriendlyCaptchaTokenError(response.errors))
+        Err(MessageError::FriendlyCaptchaTokenError(
+            response_body.errors,
+        ))
     }
 }
 
