@@ -12,7 +12,7 @@ use tokio::sync::Mutex;
 
 lazy_static! {
     static ref MAILER: Mutex<Option<Arc<AsyncSmtpTransport<Tokio1Executor>>>> = Mutex::new(None);
-    static ref MCAPTCHA_DATA: Mutex<Option<MCaptchaData>> = Mutex::new(None);
+    static ref MCAPTCHA_DATA: Mutex<Option<FriendlyCaptchaData>> = Mutex::new(None);
     static ref FROM_ADDRESS: Mailbox = "Web contact form <noreply@hovinen.tech>".parse().unwrap();
     static ref TO_ADDRESS: Mailbox = "Bradford Hovinen <hovinen@hovinen.tech>".parse().unwrap();
 }
@@ -20,8 +20,9 @@ lazy_static! {
 const SMTP_URL: &'static str = "smtps://email-smtp.eu-north-1.amazonaws.com";
 const SMTP_CREDENTIALS_NAME: &'static str = "smtp-ses-credentials";
 
-const MCAPTCHA_DATA_NAME: &'static str = "mcaptcha-data";
-const MCAPTCHA_VERIFY_URL: &'static str = "https://demo.mcaptha.org/api/v1/pow/siteverify";
+const FRIENDLYCAPTCHA_DATA_NAME: &'static str = "friendlycaptcha-data";
+const FRIENDLYCAPTCHA_VERIFY_URL: &'static str =
+    "https://api.friendlycaptcha.com/api/v1/siteverify";
 
 const BASE_HOST: &'static str = "hovinen-tech.github.io";
 
@@ -43,8 +44,8 @@ struct ContactFormMessage {
     subject: String,
     body: String,
     language: String,
-    #[serde(rename = "mcaptcha__token")]
-    mcaptcha_token: String,
+    #[serde(rename = "frc-captcha-solution")]
+    friendlycaptcha_token: String,
 }
 
 #[derive(Debug)]
@@ -53,7 +54,7 @@ enum MessageError {
     BadMessage(lettre::error::Error),
     SendError(lettre::transport::smtp::Error),
     MissingPayload,
-    McaptchaTokenError,
+    FriendlyCaptchaTokenError(Vec<String>),
 }
 
 impl std::fmt::Display for MessageError {
@@ -63,7 +64,9 @@ impl std::fmt::Display for MessageError {
             MessageError::BadMessage(error) => write!(f, "Error building message: {error}"),
             MessageError::SendError(error) => write!(f, "Error sending message: {error}"),
             MessageError::MissingPayload => write!(f, "Event message is missing a payload"),
-            MessageError::McaptchaTokenError => write!(f, "mCaptcha token did not validate"),
+            MessageError::FriendlyCaptchaTokenError(errors) => {
+                write!(f, "FriendlyCaptcha token did not validate: {errors:?}")
+            }
         }
     }
 }
@@ -89,9 +92,9 @@ async fn send_message(message: ContactFormMessage) -> Result<String, MessageErro
         subject,
         body,
         language,
-        mcaptcha_token,
+        friendlycaptcha_token,
     } = message;
-    verify_mcaptcha_token(mcaptcha_token).await?;
+    verify_friendlycaptcha_token(friendlycaptcha_token).await?;
     let reply_to_string = if let Some(name) = name {
         format!("{} <{}>", name, email)
     } else {
@@ -115,34 +118,35 @@ async fn send_message(message: ContactFormMessage) -> Result<String, MessageErro
 }
 
 #[derive(Deserialize, Clone)]
-struct MCaptchaData {
-    #[serde(rename = "MCAPTCHA_KEY")]
-    key: String,
-    #[serde(rename = "MCAPTCHA_SECRET")]
+struct FriendlyCaptchaData {
+    #[serde(rename = "FRIENDLYCAPTCHA_SITEKEY")]
+    sitekey: String,
+    #[serde(rename = "FRIENDLYCAPTCHA_SECRET")]
     secret: String,
 }
 
 #[derive(Serialize)]
-struct MCaptchaVerifyPayload {
-    token: String,
-    key: String,
+struct FriendlyCaptchaVerifyPayload {
+    solution: String,
     secret: String,
+    sitekey: String,
 }
 
 #[derive(Deserialize)]
-struct MCaptchaResponse {
-    valid: bool,
+struct FriendlyCaptchaResponse {
+    success: bool,
+    errors: Vec<String>,
 }
 
-async fn verify_mcaptcha_token(token: String) -> Result<(), MessageError> {
+async fn verify_friendlycaptcha_token(solution: String) -> Result<(), MessageError> {
     let data = fetch_mcaptcha_data().await.unwrap();
-    let payload = MCaptchaVerifyPayload {
-        token,
-        key: data.key,
+    let payload = FriendlyCaptchaVerifyPayload {
+        solution,
+        sitekey: data.sitekey,
         secret: data.secret,
     };
-    let response: MCaptchaResponse = Client::new()
-        .post(MCAPTCHA_VERIFY_URL)
+    let response: FriendlyCaptchaResponse = Client::new()
+        .post(FRIENDLYCAPTCHA_VERIFY_URL)
         .json(&payload)
         .send()
         .await
@@ -150,19 +154,19 @@ async fn verify_mcaptcha_token(token: String) -> Result<(), MessageError> {
         .json()
         .await
         .unwrap();
-    if response.valid {
+    if response.success {
         Ok(())
     } else {
-        Err(MessageError::McaptchaTokenError)
+        Err(MessageError::FriendlyCaptchaTokenError(response.errors))
     }
 }
 
-async fn fetch_mcaptcha_data<'a>() -> Result<MCaptchaData, Error> {
+async fn fetch_mcaptcha_data<'a>() -> Result<FriendlyCaptchaData, Error> {
     let mut guard = MCAPTCHA_DATA.lock().await;
     match &*guard {
         Some(data) => Ok(data.clone()),
         None => {
-            let data: MCaptchaData = fetch_secret(MCAPTCHA_DATA_NAME).await?;
+            let data: FriendlyCaptchaData = fetch_secret(FRIENDLYCAPTCHA_DATA_NAME).await?;
             *guard = Some(data.clone());
             Ok(data)
         }
