@@ -90,6 +90,10 @@ async fn function_handler(event: Request) -> Result<Response<Body>, Error> {
             .status(400)
             .body("Malformed request: missing fields".into())
             .unwrap()),
+        Err(MessageError::FriendlyCaptchaTokenError(errors)) => Ok(Response::builder()
+            .status(400)
+            .body(format!("Captcha verification error: {errors:?}").into())
+            .unwrap()),
         // TODO: This can happen without a bug on the contact form, so redirect to an error page.
         Err(MessageError::BadEmail(email)) => Ok(Response::builder()
             .status(400)
