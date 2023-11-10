@@ -111,7 +111,8 @@ async fn send_message(message: ContactFormMessage) -> Result<String, MessageErro
         .header(ContentType::TEXT_PLAIN)
         .body(body)
         .map_err(MessageError::BadMessage)?;
-    match get_mailer().await.send(email).await {
+    let mailer = get_memoized(&MAILER, || initialise_mailer()).await.unwrap();
+    match mailer.send(email).await {
         Ok(_) => Ok(language),
         Err(e) => Err(MessageError::SendError(e)),
     }
@@ -140,7 +141,11 @@ struct FriendlyCaptchaResponse {
 }
 
 async fn verify_friendlycaptcha_token(solution: String) -> Result<(), MessageError> {
-    let data = get_friendlycaptcha_data().await;
+    let data = get_memoized(&FRIENDLYCAPTCHA_DATA, || {
+        fetch_secret(FRIENDLYCAPTCHA_DATA_NAME)
+    })
+    .await
+    .unwrap();
     let payload = FriendlyCaptchaVerifyPayload {
         solution,
         sitekey: data.sitekey,
@@ -162,14 +167,6 @@ async fn verify_friendlycaptcha_token(solution: String) -> Result<(), MessageErr
     }
 }
 
-async fn get_friendlycaptcha_data() -> FriendlyCaptchaData {
-    get_memoized(&FRIENDLYCAPTCHA_DATA, || {
-        fetch_secret(FRIENDLYCAPTCHA_DATA_NAME)
-    })
-    .await
-    .unwrap()
-}
-
 #[derive(Debug)]
 enum EnvironmentError {
     MissingSecret(&'static str),
@@ -184,10 +181,6 @@ impl Display for EnvironmentError {
 }
 
 impl std::error::Error for EnvironmentError {}
-
-async fn get_mailer() -> Arc<AsyncSmtpTransport<Tokio1Executor>> {
-    get_memoized(&MAILER, || initialise_mailer()).await.unwrap()
-}
 
 #[derive(Deserialize)]
 struct SmtpCredentials {
