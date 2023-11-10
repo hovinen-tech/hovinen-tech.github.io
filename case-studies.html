@@ -1,0 +1,127 @@
+---
+---
+
+<!doctype html>
+<html lang="en">
+  {% include head.html current_page_title="Case studies -- " %}
+
+  <body class="container">
+    {% include navbar.html current_page="case-studies" %}
+
+    <main role="main" class="container">
+      <h1>Case studies</h1>
+
+      <section id="projects" class="section container">
+        <div class="row">
+          <div class="project-column col-lg-6">
+            <div class="project-card">
+              <h3>Rebuild of backend of compliance tool</h3>
+
+              <h4>The project</h4>
+
+              <ul>
+                <li>I was tech lead of the team for four years, responsible for design and implementation of all major efforts</li>
+                <li>Full rebuild of the backend of an existing business application</li>
+                <li>Changed data model from state-based to event sourcing</li>
+                <li>New permissions system based on Google Zanzibar authorisation service</li>
+                <li>Introduced far more flexible approach to automated testing</li>
+                <li>Brought service into a hexagonal architecture, greatly improving testability and maintainability</li>
+              </ul>
+
+              <h4>Tech stack</h4>
+
+              <ul>
+                <li>Java</li>
+                <li>Google App Engine</li>
+                <li>Google Cloud Datastore</li>
+                <li>Internal Google platforms</li>
+              </ul>
+            </div>
+
+            <div class="project-card">
+              <h3>Authorisation service for a multitenant SaaS system managing employee data</h3>
+
+              <h4>The project</h4>
+
+              <ul>
+                <li>SaaS platform for managing employee data</li>
+                <li>Originally built as a monolith; company wanted to migrate to microservices</li>
+                <li>Authorisation system was a major blocker: poor latency and tight coupling with data model</li>
+                <li>I designed and led the execution of a new authorisation service</li>
+                <li>Benefits: greatly reduced latency, enabled decoupling of services from the monolith</li>
+              </ul>
+
+              <h4>Tech stack</h4>
+
+              <ul>
+                <li>Kotlin</li>
+                <li>Spring Boot</li>
+                <li>gRPC</li>
+                <li>PostgreSQL</li>
+                <li>PHP (legacy monolith)</li>
+              </ul>
+            </div>
+          </div>
+
+          <div class="project-column col-lg-6">
+            <div class="project-card">
+              <h3>Autoformatter for Kotlin</h3>
+
+              <h4>The project</h4>
+
+              <ul>
+                <li>
+                  Automated and opinionated tool to bring Kotlin code into compliance with the
+                  <a href="https://kotlinlang.org/docs/coding-conventions.html">Kotlin coding
+                  conventions</a>
+                </li>
+                <li>I designed and built this end-to-end</li>
+                <li>Available on <a href="https://github.com/hovinen/kotlin-auto-formatter">GitHub</a></li>
+              </ul>
+
+              <h4>Tech stack</h4>
+
+              <ul>
+                <li>Kotlin, Kotlin compiler</li>
+                <li>Gradle</li>
+              </ul>
+            </div>
+
+            <div class="project-card">
+              <h3>GoogleTest for Rust</h3>
+
+              <h4>The project</h4>
+
+              <ul>
+                <li>
+                  Test assertion crate for Rust based on the C++ library
+                  <a href="https://github.com/google/googletest">GoogleTest</a>
+                </li>
+                <li>Most powerful test assertion solution available for Rust currently</li>
+                <li>Facilitates porting C++ tests in GoogleTest to Rust</li>
+                <li>I was responsible for design and most of the implementation</li>
+                <li>
+                  Available on <a href="https://github.com/google/googletest-rust">GitHub</a>
+                  and <a href="https://crates.io/crates/googletest">crates.io</a>
+                </li>
+              </ul>
+
+              <h4>Tech stack</h4>
+
+              <ul>
+                <li>Rust</li>
+                <li>Cargo</li>
+                <li>GitHub Actions</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    {% include footer.html %}
+
+    {% include scroll-to-top.html %}
+    {% include scripts.html %}
+  </body>
+</html>

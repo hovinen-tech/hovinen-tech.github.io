@@ -23,7 +23,7 @@
     display: flex;
     justify-content: center;
     padding-bottom: 20px;
-    top: calc(0.3 * 50vh + 10.0 * 1.125rem);
+    margin-top: 4.5rem;
 }
 
 .small-banner-link {
@@ -41,19 +41,20 @@
         height: 50vh;
         position: relative;
 
-        h1 {
-            max-width: calc(70% - 65px);
-            top: calc(0.3 * 50vh);
-        }
-
-        .item {
+        .banner-items {
             left: 50px;
             max-width: calc(70% - 70px);
             position: absolute;
+            top: calc(10vh);
+        }
+
+        .item {
+            margin-top: 2.0rem;
+            position: relative;
         }
 
         .subtitle {
-            top: calc(0.3 * 50vh + 6.0 * 1.125rem);
+            margin-top: 1.25rem;
         }
 
         .picture {

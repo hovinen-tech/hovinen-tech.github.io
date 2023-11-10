@@ -10,9 +10,17 @@
 
     <main role="main" class="container">
       <section id="banner" class="section">
-        <h1 class="item">Bradford Hovinen</h1>
-        <p class="subtitle item">Freelance IT consultant • Technical coach • Software engineer</p>
-        {% include external-links.html %}
+        <div class="banner-items">
+          <h1 class="item">Bradford Hovinen</h1>
+          <p class="subtitle item">Freelance IT consultant • Technical coach • Software engineer</p>
+          <p class="item">
+            <strong>You're a manager at a startup or scale-up.</strong> You've found your market,
+            built a workable proof of concept. Now it comes time to <strong>professionalize your
+            business</strong>, to turn that scrappy prototype into a real product, <strong>built to
+            last.</strong>
+          </p>
+          {% include external-links.html %}
+        </div>
         <div class="picture">
           <img src="images/photo.jpg" alt="Photo of Bradford Hovinen">
         </div>
@@ -20,14 +28,7 @@
 
       <section id="customer-story" class="section">
         <p>
-          <strong>You're a manager at a startup or scale-up.</strong> You've found your market,
-          built a workable proof of concept. Now it comes time to <strong>professionalize your
-          shop</strong>, to turn that scrappy prototype into a real product, <strong>built to
-          last.</strong>
-        </p>
-
-        <p>
-          Only, how? Building a professional engineering organization with a <strong>solid product
+          Building a professional engineering organization with a <strong>solid product
           portfolio</strong> requires a different mindset than experimenting and prototyping. The
           processes and techniques which served your team well in the past won't suffice any more.
           Not only do you need to rebuild your product on a <strong>solid technical
@@ -41,7 +42,7 @@
       </section>
 
       <section id="technologies" class="section container">
-        <h2>Technologies</h2>
+        <h2>My top Technologies</h2>
 
         <div class="row">
           <div class="col-lg-4">
@@ -72,8 +73,10 @@
             <h3>Platforms and frameworks</h3>
 
             <ul>
-              <li>Spring Boot</li>
+              <li>Amazon Web Services</li>
               <li>Google Cloud Platform</li>
+              <li>Kubernetes</li>
+              <li>Spring Boot</li>
               <li>Angular</li>
             </ul>
           </div>
@@ -84,10 +87,10 @@
             <h3>Developer workflow and tools</h3>
 
             <ul>
-              <li>GitHub Actions</li>
-              <li>GitLab CI</li>
               <li>Gradle (including plugin development)</li>
               <li>Cargo</li>
+              <li>GitHub Actions</li>
+              <li>GitLab CI</li>
             </ul>
           </div>
 
@@ -96,9 +99,9 @@
 
             <ul>
               <li>PostgreSQL</li>
-              <li>MariaDB</li>
-              <li>Google Cloud Datastore</li>
+              <li>MariaDB / MySQL</li>
               <li>MongoDB</li>
+              <li>Google Cloud Datastore</li>
             </ul>
           </div>
 
@@ -110,115 +113,6 @@
               <li>Event Sourcing</li>
               <li>Hexagonal architecture</li>
             </ul>
-          </div>
-        </div>
-      </section>
-
-      <section id="projects" class="section container">
-        <h2>Selected past projects</h2>
-
-        <div class="row">
-          <div class="project-column col-lg-6">
-            <div class="project-card">
-              <h3>Rebuild of backend of compliance tool</h3>
-
-              <h4>The project</h4>
-
-              <ul>
-                <li>I was tech lead of the team for four years, responsible for design and implementation of all major efforts</li>
-                <li>Full rebuild of the backend of an existing business application</li>
-                <li>Changed data model from state-based to event sourcing</li>
-                <li>New permissions system based on Google Zanzibar authorisation service</li>
-                <li>Introduced far more flexible approach to automated testing</li>
-                <li>Brought service into a hexagonal architecture, greatly improving testability and maintainability</li>
-              </ul>
-
-              <h4>Tech stack</h4>
-
-              <ul>
-                <li>Java</li>
-                <li>Google App Engine</li>
-                <li>Google Cloud Datastore</li>
-                <li>Internal Google platforms</li>
-              </ul>
-            </div>
-
-            <div class="project-card">
-              <h3>Authorisation service for a multitenant SaaS system managing employee data</h3>
-
-              <h4>The project</h4>
-
-              <ul>
-                <li>SaaS platform for managing employee data</li>
-                <li>Originally built as a monolith; company wanted to migrate to microservices</li>
-                <li>Authorisation system was a major blocker: poor latency and tight coupling with data model</li>
-                <li>I designed and led the execution of a new authorisation service</li>
-                <li>Benefits: greatly reduced latency, enabled decoupling of services from the monolith</li>
-              </ul>
-
-              <h4>Tech stack</h4>
-
-              <ul>
-                <li>Kotlin</li>
-                <li>Spring Boot</li>
-                <li>gRPC</li>
-                <li>PostgreSQL</li>
-                <li>PHP (legacy monolith)</li>
-              </ul>
-            </div>
-          </div>
-
-          <div class="project-column col-lg-6">
-            <div class="project-card">
-              <h3>Autoformatter for Kotlin</h3>
-
-              <h4>The project</h4>
-
-              <ul>
-                <li>
-                  Automated and opinionated tool to bring Kotlin code into compliance with the
-                  <a href="https://kotlinlang.org/docs/coding-conventions.html">Kotlin coding
-                  conventions</a>
-                </li>
-                <li>I designed and built this end-to-end</li>
-                <li>Available on <a href="https://github.com/hovinen/kotlin-auto-formatter">GitHub</a></li>
-              </ul>
-
-              <h4>Tech stack</h4>
-
-              <ul>
-                <li>Kotlin, Kotlin compiler</li>
-                <li>Gradle</li>
-              </ul>
-            </div>
-
-            <div class="project-card">
-              <h3>GoogleTest for Rust</h3>
-
-              <h4>The project</h4>
-
-              <ul>
-                <li>
-                  Test assertion crate for Rust based on the C++ library
-                  <a href="https://github.com/google/googletest">GoogleTest</a>
-                </li>
-                <li>Most powerful test assertion solution available for Rust currently</li>
-                <li>Facilitates porting C++ tests in GoogleTest to Rust</li>
-                <li>I was responsible for design and most of the implementation</li>
-                <li>
-                  Available on <a href="https://github.com/google/googletest-rust">GitHub</a>
-                  and <a href="https://crates.io/crates/googletest">crates.io</a>
-                </li>
-              </ul>
-
-              <h4>Tech stack</h4>
-
-              <ul>
-                <li>Rust</li>
-                <li>Cargo</li>
-                <li>GitHub Actions</li>
-              </ul>
-            </div>
           </div>
         </div>
       </section>

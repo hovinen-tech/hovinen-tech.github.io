@@ -18,6 +18,13 @@
         <a href="about.de.html" class="nav-link">Über mich</a>
         {% endif %}
       </li>
+      <li class="nav-item{% if include.current_page == "case-studies" %} active{% endif %}">
+        {% if include.current_page == "case-studies" %}
+        <span class="nav-link">Fallstudien</span>
+        {% else %}
+        <a href="case-studies.de.html" class="nav-link">Fallstudien</a>
+        {% endif %}
+      </li>
       <li class="nav-item"><a href="https://gruebelinchen.wordpress.com" class="nav-link">Blog <i class="fas fa-external-link"></i></a></li>
       <li class="nav-item"><a href="{% if include.current_page != "index" %}index.de.html{% endif %}#contact" class="nav-link">Kontakt</a></li>
       <li class="nav-item dropdown">

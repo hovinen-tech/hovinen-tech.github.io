@@ -1,0 +1,127 @@
+---
+---
+
+<!doctype html>
+<html lang="de">
+  {% include head.html current_page_title="Fallstudien -- " %}
+
+  <body class="container">
+    {% include navbar.de.html current_page="case-studies" %}
+
+    <main role="main" class="container">
+      <h1>Fallstudien</h1>
+
+      <section id="projects" class="section container">
+        <div class="row">
+          <div class="project-column col-lg-6">
+            <div class="project-card">
+              <h3>Neuaufbau des Backends des Compliance-Tools</h3>
+
+              <h4>Das Projekt</h4>
+
+              <ul>
+                <li>Ich war vier Jahre lang der technische Leiter des Teams und verantwortlich für die Konzeption und Umsetzung aller wichtigen Projekte</li>
+                <li>Vollständiger Neuaufbau des Backends einer bestehenden Geschäftsanwendung</li>
+                <li>Änderung des Datenmodells von zustandsbasierter zu ereignisbasierter Datenbeschaffung</li>
+                <li>Neues Berechtigungssystem auf der Grundlage des Google Zanzibar Autorisierungsdienstes</li>
+                <li>Einführung eines wesentlich flexibleren Ansatzes für automatisierte Tests</li>
+                <li>Überführung des Dienstes in eine hexagonale Architektur, was die Testbarkeit und Wartbarkeit erheblich verbessert</li>
+              </ul>
+
+              <h4>Technologien</h4>
+
+              <ul>
+                <li>Java</li>
+                <li>Google App Engine</li>
+                <li>Google Cloud Datastore</li>
+                <li>Interne Google-Plattformen</li>
+              </ul>
+            </div>
+
+            <div class="project-card">
+              <h3>Autorisierungsdienst für ein mandantenfähiges SaaS-System zur Verwaltung von Mitarbeiterdaten</h3>
+
+              <h4>Das Projekt</h4>
+
+              <ul>
+                <li>SaaS-Plattform für die Verwaltung von Mitarbeiterdaten</li>
+                <li>Ursprünglich als Monolith gebaut; das Unternehmen wollte zu Microservices migrieren</li>
+                <li>Das Autorisierungssystem war ein großes Hindernis: schlechte Latenzzeit und enge Kopplung mit dem Datenmodell</li>
+                <li>Ich habe einen neuen Zulassungsdienst entworfen und geleitet</li>
+                <li>Vorteile: stark reduzierte Latenzzeit, Entkopplung der Dienste vom Monolithen</li>
+              </ul>
+
+              <h4>Technologien</h4>
+
+              <ul>
+                <li>Kotlin</li>
+                <li>Spring Boot</li>
+                <li>gRPC</li>
+                <li>PostgreSQL</li>
+                <li>PHP (veralteter Monolith)</li>
+              </ul>
+            </div>
+          </div>
+
+          <div class="project-column col-lg-6">
+            <div class="project-card">
+              <h3>Autoformatter for Kotlin</h3>
+
+              <h4>Das Projekt</h4>
+
+              <ul>
+                <li>
+                  Automatisiertes und kommentiertes Werkzeug, um Kotlin-Code in Übereinstimmung mit den
+                  <a href="https://kotlinlang.org/docs/coding-conventions.html">Kotlin-Kodierkonventionen</a>
+                  zu bringen
+                </li>
+                <li>Ich habe diese End-to-End-Lösung entworfen und gebaut</li>
+                <li>Verfügbar auf <a href="https://github.com/hovinen/kotlin-auto-formatter">GitHub</a></li>
+              </ul>
+
+              <h4>Technologien</h4>
+
+              <ul>
+                <li>Kotlin, Kotlin compiler</li>
+                <li>Gradle</li>
+              </ul>
+            </div>
+
+            <div class="project-card">
+              <h3>GoogleTest for Rust</h3>
+
+              <h4>Das Projekt</h4>
+
+              <ul>
+                <li>
+                    Test-Assertion-Crate für Rust basierend auf der C++-Bibliothek
+                  <a href="https://github.com/google/googletest">GoogleTest</a>
+                </li>
+                <li>Mächtigste Test Assertion Lösung, die derzeit für Rust verfügbar ist</li>
+                <li>Erleichtert die Portierung von C++-Tests in GoogleTest nach Rust</li>
+                <li>Ich war für das Design und den größten Teil der Implementierung verantwortlich</li>
+                <li>
+                  Verfügbar auf <a href="https://github.com/google/googletest-rust">GitHub</a>
+                  und <a href="https://crates.io/crates/googletest">crates.io</a>
+                </li>
+              </ul>
+
+              <h4>Technologien</h4>
+
+              <ul>
+                <li>Rust</li>
+                <li>Cargo</li>
+                <li>GitHub Actions</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    {% include footer.de.html %}
+
+    {% include scroll-to-top.html %}
+    {% include scripts.html %}
+  </body>
+</html>

@@ -10,9 +10,17 @@
 
     <main role="main" class="container">
       <section id="banner" class="section">
-        <h1 class="item">Dr. Bradford Hovinen</h1>
-        <p class="subtitle item">Freiberuflicher IT-Berater • Technischer Coach • Software-Ingenieur</p>
-        {% include external-links.html %}
+        <div class="banner-items">
+          <h1 class="item">Dr. Bradford Hovinen</h1>
+          <p class="subtitle item">Freiberuflicher IT-Berater • Technischer Coach • Software-Ingenieur</p>
+          <p class="item">
+            <strong>Sie sind Manager in einem Start-up oder Scale-up.</strong> Sie haben Ihren Markt
+            gefunden und ein praktikables Konzept entwickelt. Jetzt ist es an der Zeit, Ihr
+            <strong>Geschäft zu professionalisieren</strong> und aus dem schäbigen Prototyp ein echtes
+            Produkt zu machen, das <strong>für die Ewigkeit gebaut ist</strong>.
+          </p>
+          {% include external-links.html %}
+        </div>
         <div class="picture">
           <img src="images/photo.jpg" alt="Foto von Bradford Hovinen">
         </div>
@@ -20,14 +28,7 @@
 
       <section id="customer-story" class="section">
         <p>
-          <strong>Sie sind Manager in einem Start-up oder Scale-up.</strong> Sie haben Ihren Markt
-          gefunden und ein praktikables Konzept entwickelt. Jetzt ist es an der Zeit, Ihr
-          <strong>Geschäft zu professionalisieren</strong> und aus dem schäbigen Prototyp ein echtes
-          Produkt zu machen, das <strong>für die Ewigkeit gebaut ist</strong>.
-        </p>
-
-        <p>
-          Nur, wie? Der Aufbau einer professionellen technischen Organisation mit einem
+          Der Aufbau einer professionellen technischen Organisation mit einem
           <strong>soliden Produktportfolio</strong> erfordert eine andere Denkweise als das
           Experimentieren und Prototyping. Die Prozesse und Techniken, die Ihrem Team in der
           Vergangenheit gute Dienste geleistet haben, reichen nicht mehr aus. Sie müssen nicht nur
@@ -42,7 +43,7 @@
       </section>
 
       <section id="technologies" class="section container">
-        <h2>Technologien</h2>
+        <h2>Meine stärksten Technologien</h2>
 
         <div class="row">
           <div class="col-lg-4">
@@ -73,8 +74,10 @@
             <h3>Plattformen und Frameworks</h3>
 
             <ul>
-              <li>Spring Boot</li>
+              <li>Amazon Web Services</li>
               <li>Google Cloud Platform</li>
+              <li>Kubernetes</li>
+              <li>Spring Boot</li>
               <li>Angular</li>
             </ul>
           </div>
@@ -85,10 +88,10 @@
             <h3>Entwicklerwerkzeuge</h3>
 
             <ul>
-              <li>GitHub Actions</li>
-              <li>GitLab CI</li>
               <li>Gradle (inklusiv Pluginentwicklung)</li>
               <li>Cargo</li>
+              <li>GitHub Actions</li>
+              <li>GitLab CI</li>
             </ul>
           </div>
 
@@ -97,9 +100,9 @@
 
             <ul>
               <li>PostgreSQL</li>
-              <li>MariaDB</li>
-              <li>Google Cloud Datastore</li>
+              <li>MariaDB / MySQL</li>
               <li>MongoDB</li>
+              <li>Google Cloud Datastore</li>
             </ul>
           </div>
 
@@ -111,115 +114,6 @@
               <li>Event Sourcing</li>
               <li>Hexagonal Architektur</li>
             </ul>
-          </div>
-        </div>
-      </section>
-
-      <section id="projects" class="section container">
-        <h2>Auswahl vergangener Projekte</h2>
-
-        <div class="row">
-          <div class="project-column col-lg-6">
-            <div class="project-card">
-              <h3>Neuaufbau des Backends des Compliance-Tools</h3>
-
-              <h4>Das Projekt</h4>
-
-              <ul>
-                <li>Ich war vier Jahre lang der technische Leiter des Teams und verantwortlich für die Konzeption und Umsetzung aller wichtigen Projekte</li>
-                <li>Vollständiger Neuaufbau des Backends einer bestehenden Geschäftsanwendung</li>
-                <li>Änderung des Datenmodells von zustandsbasierter zu ereignisbasierter Datenbeschaffung</li>
-                <li>Neues Berechtigungssystem auf der Grundlage des Google Zanzibar Autorisierungsdienstes</li>
-                <li>Einführung eines wesentlich flexibleren Ansatzes für automatisierte Tests</li>
-                <li>Überführung des Dienstes in eine hexagonale Architektur, was die Testbarkeit und Wartbarkeit erheblich verbessert</li>
-              </ul>
-
-              <h4>Technologien</h4>
-
-              <ul>
-                <li>Java</li>
-                <li>Google App Engine</li>
-                <li>Google Cloud Datastore</li>
-                <li>Interne Google-Plattformen</li>
-              </ul>
-            </div>
-
-            <div class="project-card">
-              <h3>Autorisierungsdienst für ein mandantenfähiges SaaS-System zur Verwaltung von Mitarbeiterdaten</h3>
-
-              <h4>Das Projekt</h4>
-
-              <ul>
-                <li>SaaS-Plattform für die Verwaltung von Mitarbeiterdaten</li>
-                <li>Ursprünglich als Monolith gebaut; das Unternehmen wollte zu Microservices migrieren</li>
-                <li>Das Autorisierungssystem war ein großes Hindernis: schlechte Latenzzeit und enge Kopplung mit dem Datenmodell</li>
-                <li>Ich habe einen neuen Zulassungsdienst entworfen und geleitet</li>
-                <li>Vorteile: stark reduzierte Latenzzeit, Entkopplung der Dienste vom Monolithen</li>
-              </ul>
-
-              <h4>Technologien</h4>
-
-              <ul>
-                <li>Kotlin</li>
-                <li>Spring Boot</li>
-                <li>gRPC</li>
-                <li>PostgreSQL</li>
-                <li>PHP (veralteter Monolith)</li>
-              </ul>
-            </div>
-          </div>
-
-          <div class="project-column col-lg-6">
-            <div class="project-card">
-              <h3>Autoformatter for Kotlin</h3>
-
-              <h4>Das Projekt</h4>
-
-              <ul>
-                <li>
-                  Automatisiertes und kommentiertes Werkzeug, um Kotlin-Code in Übereinstimmung mit den
-                  <a href="https://kotlinlang.org/docs/coding-conventions.html">Kotlin-Kodierkonventionen</a>
-                  zu bringen
-                </li>
-                <li>Ich habe diese End-to-End-Lösung entworfen und gebaut</li>
-                <li>Verfügbar auf <a href="https://github.com/hovinen/kotlin-auto-formatter">GitHub</a></li>
-              </ul>
-
-              <h4>Technologien</h4>
-
-              <ul>
-                <li>Kotlin, Kotlin compiler</li>
-                <li>Gradle</li>
-              </ul>
-            </div>
-
-            <div class="project-card">
-              <h3>GoogleTest for Rust</h3>
-
-              <h4>Das Projekt</h4>
-
-              <ul>
-                <li>
-                    Test-Assertion-Crate für Rust basierend auf der C++-Bibliothek
-                  <a href="https://github.com/google/googletest">GoogleTest</a>
-                </li>
-                <li>Mächtigste Test Assertion Lösung, die derzeit für Rust verfügbar ist</li>
-                <li>Erleichtert die Portierung von C++-Tests in GoogleTest nach Rust</li>
-                <li>Ich war für das Design und den größten Teil der Implementierung verantwortlich</li>
-                <li>
-                  Verfügbar auf <a href="https://github.com/google/googletest-rust">GitHub</a>
-                  und <a href="https://crates.io/crates/googletest">crates.io</a>
-                </li>
-              </ul>
-
-              <h4>Technologien</h4>
-
-              <ul>
-                <li>Rust</li>
-                <li>Cargo</li>
-                <li>GitHub Actions</li>
-              </ul>
-            </div>
           </div>
         </div>
       </section>
