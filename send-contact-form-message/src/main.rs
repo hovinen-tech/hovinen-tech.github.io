@@ -160,6 +160,11 @@ async fn verify_friendlycaptcha_token(solution: String) -> Result<(), MessageErr
     {
         Ok(response) => response,
         Err(error) => {
+            if let Some(status) = error.status() {
+                if status.is_client_error() {
+                    panic!("Client error when communicating to FriendlyCaptcha.");
+                }
+            }
             warn!("Error verifying FriendlyCaptcha solution: {error}");
             warn!("Letting request pass without verification.");
             return Ok(());
