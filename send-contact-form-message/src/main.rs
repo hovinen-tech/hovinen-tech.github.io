@@ -44,7 +44,7 @@ struct ContactFormMessage {
     subject: String,
     body: String,
     language: String,
-    #[serde(rename = "frc-captcha-solution")]
+    #[serde(rename = "frc-captcha-solution", default)]
     friendlycaptcha_token: String,
 }
 
