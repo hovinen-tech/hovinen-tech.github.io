@@ -7,7 +7,7 @@ use lettre::{
 };
 use reqwest::Client;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
-use std::{fmt::Display, future::Future, sync::Arc};
+use std::{borrow::Cow, fmt::Display, future::Future, sync::Arc};
 use tokio::sync::Mutex;
 use tracing::warn;
 
@@ -18,7 +18,7 @@ lazy_static! {
     static ref TO_ADDRESS: Mailbox = "Bradford Hovinen <hovinen@hovinen.tech>".parse().unwrap();
 }
 
-const SMTP_URL: &'static str = "smtps://email-smtp.eu-north-1.amazonaws.com";
+const SMTP_HOST: &'static str = "email-smtp.eu-north-1.amazonaws.com";
 const SMTP_CREDENTIALS_NAME: &'static str = "smtp-ses-credentials";
 
 const FRIENDLYCAPTCHA_DATA_NAME: &'static str = "friendlycaptcha-data";
@@ -173,7 +173,7 @@ async fn verify_friendlycaptcha_token(solution: String) -> Result<(), MessageErr
         secret: data.secret,
     };
     let response = match Client::new()
-        .post(FRIENDLYCAPTCHA_VERIFY_URL)
+        .post(friendlycaptcha_verify_url().as_ref())
         .json(&payload)
         .send()
         .await
@@ -207,6 +207,12 @@ async fn verify_friendlycaptcha_token(solution: String) -> Result<(), MessageErr
     }
 }
 
+fn friendlycaptcha_verify_url() -> Cow<'static, str> {
+    std::env::var("FRIENDLYCAPTCHA_VERIFY_URL")
+        .map(Cow::Owned)
+        .unwrap_or(FRIENDLYCAPTCHA_VERIFY_URL.into())
+}
+
 #[derive(Debug)]
 enum EnvironmentError {
     MissingSecret(&'static str),
@@ -234,13 +240,23 @@ async fn initialise_mailer() -> Result<Arc<AsyncSmtpTransport<Tokio1Executor>>, 
     let parsed_credentials: SmtpCredentials = fetch_secret(SMTP_CREDENTIALS_NAME).await?;
 
     Ok(Arc::new(
-        AsyncSmtpTransport::<Tokio1Executor>::from_url(SMTP_URL)?
+        AsyncSmtpTransport::<Tokio1Executor>::from_url(&smtp_url())?
             .credentials(Credentials::new(
                 parsed_credentials.username,
                 parsed_credentials.password,
             ))
             .build(),
     ))
+}
+
+fn smtp_url() -> String {
+    let host = std::env::var("SMTP_HOST")
+        .map(Cow::Owned)
+        .unwrap_or(SMTP_HOST.into());
+    let port = std::env::var("SMTP_PORT")
+        .map(|v| Cow::Owned(format!(":{v}")))
+        .unwrap_or("".into());
+    format!("smtps://{host}{port}")
 }
 
 async fn fetch_secret<T: DeserializeOwned>(name: &'static str) -> Result<T, Error> {
