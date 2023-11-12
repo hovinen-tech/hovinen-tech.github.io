@@ -2,7 +2,7 @@ use lambda_http::{run, service_fn, Body, Error, Request, RequestPayloadExt, Resp
 use lazy_static::lazy_static;
 use lettre::{
     message::{header::ContentType, Mailbox},
-    transport::smtp::authentication::Credentials,
+    transport::smtp::authentication::{Credentials, Mechanism},
     AsyncSmtpTransport, AsyncTransport, Message, Tokio1Executor,
 };
 use reqwest::Client;
@@ -18,14 +18,13 @@ lazy_static! {
     static ref TO_ADDRESS: Mailbox = "Bradford Hovinen <hovinen@hovinen.tech>".parse().unwrap();
 }
 
-const SMTP_HOST: &'static str = "email-smtp.eu-north-1.amazonaws.com";
-const SMTP_CREDENTIALS_NAME: &'static str = "smtp-ses-credentials";
+const SMTP_URL: &str = "smtps://email-smtp.eu-north-1.amazonaws.com";
+const SMTP_CREDENTIALS_NAME: &str = "smtp-ses-credentials";
 
-const FRIENDLYCAPTCHA_DATA_NAME: &'static str = "friendlycaptcha-data";
-const FRIENDLYCAPTCHA_VERIFY_URL: &'static str =
-    "https://api.friendlycaptcha.com/api/v1/siteverify";
+const FRIENDLYCAPTCHA_DATA_NAME: &str = "friendlycaptcha-data";
+const FRIENDLYCAPTCHA_VERIFY_URL: &str = "https://api.friendlycaptcha.com/api/v1/siteverify";
 
-const BASE_HOST: &'static str = "hovinen-tech.github.io";
+const BASE_HOST: &str = "hovinen-tech.github.io";
 
 #[tokio::main]
 async fn main() -> Result<(), Error> {
@@ -241,6 +240,7 @@ async fn initialise_mailer() -> Result<Arc<AsyncSmtpTransport<Tokio1Executor>>, 
 
     Ok(Arc::new(
         AsyncSmtpTransport::<Tokio1Executor>::from_url(&smtp_url())?
+            .authentication(vec![Mechanism::Plain])
             .credentials(Credentials::new(
                 parsed_credentials.username,
                 parsed_credentials.password,
@@ -249,18 +249,18 @@ async fn initialise_mailer() -> Result<Arc<AsyncSmtpTransport<Tokio1Executor>>, 
     ))
 }
 
-fn smtp_url() -> String {
-    let host = std::env::var("SMTP_HOST")
+fn smtp_url() -> Cow<'static, str> {
+    std::env::var("SMTP_URL")
         .map(Cow::Owned)
-        .unwrap_or(SMTP_HOST.into());
-    let port = std::env::var("SMTP_PORT")
-        .map(|v| Cow::Owned(format!(":{v}")))
-        .unwrap_or("".into());
-    format!("smtps://{host}{port}")
+        .unwrap_or(SMTP_URL.into())
 }
 
 async fn fetch_secret<T: DeserializeOwned>(name: &'static str) -> Result<T, Error> {
-    let config = aws_config::from_env().region("eu-north-1").load().await;
+    let config = aws_config::from_env()
+        .endpoint_url(std::env::var("AWS_ENDPOINT_URL").unwrap_or("".to_string()))
+        .region("eu-north-1")
+        .load()
+        .await;
     let secrets_client = aws_sdk_secretsmanager::Client::new(&config);
 
     let secret = secrets_client
