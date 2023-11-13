@@ -44,7 +44,7 @@ async fn sends_email_to_recipient() -> Result<()> {
 
 fn setup_logging() {
     CombinedLogger::init(vec![TermLogger::new(
-        LevelFilter::Trace,
+        LevelFilter::Info,
         Config::default(),
         TerminalMode::Mixed,
         ColorChoice::Auto,
