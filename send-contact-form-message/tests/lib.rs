@@ -1,26 +1,18 @@
+mod fake_smtp;
+
+use crate::fake_smtp::{setup_smtp, SMTP_PORT};
 use aws_config::SdkConfig;
 use aws_sdk_lambda::{
     primitives::Blob,
     types::{Environment, FunctionCode, FunctionConfiguration, Runtime, State},
 };
 use googletest::prelude::*;
-use mailin_embedded::{AuthMechanism, Handler, Server, SslConfig};
 use serde::Deserialize;
 use simplelog::{ColorChoice, CombinedLogger, Config, LevelFilter, TermLogger, TerminalMode};
-use std::{
-    process::Command,
-    sync::{Arc, Mutex},
-    time::Duration,
-};
+use std::{process::Command, time::Duration};
 use testcontainers::{clients::Cli, core::WaitFor, GenericImage, RunnableImage};
-use tokio::{
-    sync::oneshot::{self, Receiver, Sender},
-    time::{sleep, timeout},
-};
-use tracing::debug;
+use tokio::time::{sleep, timeout};
 use url::Url;
-
-const SMTP_PORT: &str = "4567";
 
 #[googletest::test]
 #[tokio::test]
@@ -143,53 +135,6 @@ async fn provision_secret(
         .secret_string(content)
         .send()
         .await;
-}
-
-fn setup_smtp() -> Receiver<String> {
-    #[derive(Clone)]
-    struct SmtpHandler(Vec<u8>, Arc<Mutex<Option<Sender<String>>>>);
-    impl Handler for SmtpHandler {
-        fn data(&mut self, buf: &[u8]) -> std::io::Result<()> {
-            debug!("Got data:\n{}", String::from_utf8_lossy(buf));
-            self.0.extend(buf);
-            Ok(())
-        }
-
-        fn data_end(&mut self) -> mailin_embedded::Response {
-            self.1
-                .lock()
-                .unwrap()
-                .take()
-                .unwrap()
-                .send(String::from_utf8(self.0.drain(..).collect()).unwrap())
-                .unwrap();
-            mailin_embedded::response::OK
-        }
-
-        fn auth_plain(
-            &mut self,
-            authorization_id: &str,
-            authentication_id: &str,
-            password: &str,
-        ) -> mailin_embedded::Response {
-            debug!("Got authentication data {authorization_id}, {authentication_id}, {password}");
-            mailin_embedded::response::AUTH_OK
-        }
-    }
-    let (tx, rx) = oneshot::channel();
-    let handler = SmtpHandler(Vec::new(), Arc::new(Mutex::new(Some(tx))));
-    let mut server = Server::new(handler);
-    server
-        .with_name("hovinen.tech")
-        .with_ssl(SslConfig::None)
-        .unwrap()
-        .with_addr(format!("0.0.0.0:{SMTP_PORT}"))
-        .unwrap()
-        .with_auth(AuthMechanism::Plain);
-    std::thread::spawn(|| {
-        let _ = server.serve();
-    });
-    rx
 }
 
 async fn setup_lambda(config: &SdkConfig) -> (aws_sdk_lambda::Client, String) {
