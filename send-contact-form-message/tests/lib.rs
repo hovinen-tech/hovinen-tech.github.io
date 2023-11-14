@@ -7,18 +7,31 @@ use aws_sdk_lambda::{
     types::{Environment, FunctionCode, FunctionConfiguration, Runtime, State},
 };
 use googletest::prelude::*;
+use lazy_static::lazy_static;
+use log::info;
 use serde::Deserialize;
 use simplelog::{ColorChoice, CombinedLogger, Config, LevelFilter, TermLogger, TerminalMode};
 use std::{process::Command, time::Duration};
-use testcontainers::{clients::Cli, core::WaitFor, GenericImage, RunnableImage};
+use testcontainers::{clients::Cli, core::WaitFor, Container, GenericImage, RunnableImage};
 use tokio::time::{sleep, timeout};
-use url::Url;
+
+const LOCALSTACK_PORT: u16 = 4566;
+
+lazy_static! {
+    static ref DOCKER: Cli = Cli::default();
+}
+
+struct LocalStackConfig {
+    aws_host_from_subject: String,
+    sdk_config: SdkConfig,
+    _container: Option<Container<'static, GenericImage>>,
+}
 
 #[googletest::test]
 #[tokio::test]
 async fn sends_email_to_recipient() -> Result<()> {
     setup_logging();
-    let config = setup_aws().await;
+    let config = LocalStackConfig::new().await;
     setup_secrets(&config).await;
     let rx = setup_smtp();
     let (lambda_client, function_name) = setup_lambda(&config).await;
@@ -52,58 +65,82 @@ fn setup_logging() {
     .unwrap();
 }
 
-async fn setup_aws() -> SdkConfig {
-    let aws_endpoint = get_aws_endpoint_url();
-    aws_config::from_env()
-        .endpoint_url(&aws_endpoint)
-        .load()
-        .await
-}
-
-fn get_aws_endpoint_url() -> String {
-    if let Ok(_) = std::env::var("USE_RUNNING_LOCALSTACK") {
-        get_endpoint_url_from_running_localstack()
-    } else {
-        run_localstack_returning_endpoint_url()
+impl LocalStackConfig {
+    async fn new() -> Self {
+        let (aws_endpoint_url_from_test, aws_host_from_subject, container) =
+            Self::get_aws_endpoint_url();
+        info!("Using AWS endpoint {aws_endpoint_url_from_test}");
+        info!("Host from within system under test {aws_host_from_subject}");
+        let sdk_config = aws_config::from_env()
+            .endpoint_url(&aws_endpoint_url_from_test)
+            .load()
+            .await;
+        Self {
+            aws_host_from_subject,
+            sdk_config,
+            _container: container,
+        }
     }
-}
 
-fn get_endpoint_url_from_running_localstack() -> String {
-    #[derive(Deserialize)]
-    struct LocalStackStatus {
-        container_ip: String,
+    fn get_aws_endpoint_url() -> (String, String, Option<Container<'static, GenericImage>>) {
+        if let Ok(_) = std::env::var("USE_RUNNING_LOCALSTACK") {
+            let localstack_container_ip = Self::get_container_ip_from_running_localstack();
+            (
+                format!("http://{localstack_container_ip}:{LOCALSTACK_PORT}"),
+                localstack_container_ip,
+                None,
+            )
+        } else {
+            let (aws_endpoint_url_from_test, aws_host_from_subject, container) =
+                Self::run_localstack_returning_endpoint_url();
+            (
+                aws_endpoint_url_from_test,
+                aws_host_from_subject,
+                Some(container),
+            )
+        }
     }
-    let localstack_status: LocalStackStatus = serde_json::from_slice(
-        &Command::new("localstack")
-            .args(["status", "docker", "-f", "json"])
-            .output()
-            .unwrap()
-            .stdout,
-    )
-    .unwrap();
-    format!("http://{}:4566", localstack_status.container_ip)
-}
 
-fn run_localstack_returning_endpoint_url() -> String {
-    let docker = Cli::default();
-    let container = docker.run(
-        RunnableImage::from(
-            GenericImage::new("localstack/localstack", "2.3.2")
-                .with_volume("/var/run/docker.sock", "/var/run/docker.sock")
-                .with_wait_for(WaitFor::Healthcheck),
+    fn get_container_ip_from_running_localstack() -> String {
+        #[derive(Deserialize)]
+        struct LocalStackStatus {
+            container_ip: String,
+        }
+        let localstack_status: LocalStackStatus = serde_json::from_slice(
+            &Command::new("localstack")
+                .args(["status", "docker", "-f", "json"])
+                .output()
+                .unwrap()
+                .stdout,
         )
-        .with_network("bridge")
-        .with_env_var(("DEBUG", "1")),
-    );
-    format!(
-        "http://{}:{}",
-        container.get_bridge_ip_address(),
-        container.get_host_port_ipv4(4566)
-    )
+        .unwrap();
+        localstack_status.container_ip
+    }
+
+    fn run_localstack_returning_endpoint_url() -> (String, String, Container<'static, GenericImage>)
+    {
+        let container = DOCKER.run(
+            RunnableImage::from(
+                GenericImage::new("localstack/localstack", "2.3.2")
+                    .with_volume("/var/run/docker.sock", "/var/run/docker.sock")
+                    .with_wait_for(WaitFor::Healthcheck),
+            )
+            .with_network("bridge")
+            .with_env_var(("DEBUG", "1")),
+        );
+        (
+            format!(
+                "http://localhost:{}",
+                container.get_host_port_ipv4(LOCALSTACK_PORT)
+            ),
+            format!("{}", container.get_bridge_ip_address()),
+            container,
+        )
+    }
 }
 
-async fn setup_secrets(config: &SdkConfig) {
-    let secrets_client = aws_sdk_secretsmanager::Client::new(config);
+async fn setup_secrets(config: &LocalStackConfig) {
+    let secrets_client = aws_sdk_secretsmanager::Client::new(&config.sdk_config);
     provision_secret(
         &secrets_client,
         "smtp-ses-credentials",
@@ -137,8 +174,8 @@ async fn provision_secret(
         .await;
 }
 
-async fn setup_lambda(config: &SdkConfig) -> (aws_sdk_lambda::Client, String) {
-    let lambda_client = aws_sdk_lambda::Client::new(&config);
+async fn setup_lambda(config: &LocalStackConfig) -> (aws_sdk_lambda::Client, String) {
+    let lambda_client = aws_sdk_lambda::Client::new(&config.sdk_config);
     let create_function_result = lambda_client
         .create_function()
         .function_name("send-contact-form-message")
@@ -164,25 +201,19 @@ fn build_function_code() -> FunctionCode {
         .build()
 }
 
-fn build_lambda_environment(config: &SdkConfig) -> Environment {
-    let container_host = get_container_host(config);
+fn build_lambda_environment(config: &LocalStackConfig) -> Environment {
     Environment::builder()
         .variables(
             "AWS_ENDPOINT_URL",
-            config.endpoint_url().unwrap_or_default(),
+            format!("http://{}:{LOCALSTACK_PORT}", config.aws_host_from_subject),
         )
         .variables("SMTP_URL", format!("smtp://172.17.0.1:{SMTP_PORT}"))
         .variables(
             "FRIENDLYCAPTCHA_VERIFY_URL",
             // TODO
-            format!("http://{container_host}:12000"),
+            format!("http://{}:12000", config.aws_host_from_subject),
         )
         .build()
-}
-
-fn get_container_host(config: &SdkConfig) -> String {
-    let endpoint_url = Url::parse(config.endpoint_url().unwrap_or_default()).unwrap();
-    endpoint_url.host_str().unwrap().into()
 }
 
 async fn wait_for_lambda_to_be_ready(lambda_client: &aws_sdk_lambda::Client, function_name: &str) {
