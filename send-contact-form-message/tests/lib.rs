@@ -1,7 +1,7 @@
-mod fake_smtp;
-mod localstack_config;
+mod common;
 
-use crate::{
+use crate::common::{
+    fake_friendlycaptcha::FakeFriendlyCaptcha,
     fake_smtp::{setup_smtp, SMTP_PORT},
     localstack_config::{LocalStackConfig, LOCALSTACK_PORT},
 };
@@ -11,20 +11,26 @@ use aws_sdk_lambda::{
 };
 use googletest::prelude::*;
 use simplelog::{ColorChoice, CombinedLogger, Config, LevelFilter, TermLogger, TerminalMode};
-use std::time::Duration;
+use std::{sync::Arc, time::Duration};
 use tokio::time::{sleep, timeout};
 
 // Address of services which this test runs itself, as seen by the containers inside Docker. This
 // is a fixed IP address for Docker in Linux.
 const HOST_IP: &str = "172.17.0.1";
 
+const FAKE_FRIENDLYCAPTCHA_SITEKEY: &str = "arbitrary sitekey";
+const FAKE_FRIENDLYCAPTCHA_SECRET: &str = "arbitrary secret";
+
 #[googletest::test]
 #[tokio::test]
 async fn sends_email_to_recipient() -> Result<()> {
     setup_logging();
     let config = LocalStackConfig::new().await;
+    let fake_friendlycaptcha: Arc<FakeFriendlyCaptcha> =
+        FakeFriendlyCaptcha::new(FAKE_FRIENDLYCAPTCHA_SITEKEY, FAKE_FRIENDLYCAPTCHA_SECRET);
+    tokio::spawn(fake_friendlycaptcha.serve());
     setup_secrets(&config).await;
-    let rx = setup_smtp();
+    let mail_content = setup_smtp();
     let (lambda_client, function_name) = setup_lambda(&config).await;
     const PAYLOAD: &str = r#"{"headers":{"Content-Type":"application/json"},"body":"{\"name\":\"Arbitrary sender\",\"email\":\"email@example.com\",\"subject\":\"Test\",\"body\":\"Test message\",\"language\":\"en\",\"frc-captcha-solution\":\"arbitrary captcha solution\"}"}"#;
 
@@ -41,14 +47,14 @@ async fn sends_email_to_recipient() -> Result<()> {
         ok(not(contains_substring("errorMessage")))
     )?;
     verify_that!(
-        timeout(Duration::from_secs(10), rx).await,
+        timeout(Duration::from_secs(10), mail_content).await,
         ok(ok(contains_substring("Test message")))
     )
 }
 
 fn setup_logging() {
     CombinedLogger::init(vec![TermLogger::new(
-        LevelFilter::Info,
+        LevelFilter::Debug,
         Config::default(),
         TerminalMode::Mixed,
         ColorChoice::Auto,
@@ -70,10 +76,13 @@ async fn setup_secrets(config: &LocalStackConfig) {
     provision_secret(
         &secrets_client,
         "friendlycaptcha-data",
-        r#"{
-            "FRIENDLYCAPTCHA_SITEKEY": "fake sitekey",
-            "FRIENDLYCAPTCHA_SECRET": "fake secret"
-        }"#,
+        format!(
+            r#"{{
+                "FRIENDLYCAPTCHA_SITEKEY": "{FAKE_FRIENDLYCAPTCHA_SITEKEY}",
+                "FRIENDLYCAPTCHA_SECRET": "{FAKE_FRIENDLYCAPTCHA_SECRET}"
+            }}"#
+        )
+        .as_str(),
     )
     .await;
 }
@@ -127,8 +136,7 @@ fn build_lambda_environment(config: &LocalStackConfig) -> Environment {
         .variables("SMTP_URL", format!("smtp://{HOST_IP}:{SMTP_PORT}"))
         .variables(
             "FRIENDLYCAPTCHA_VERIFY_URL",
-            // TODO
-            format!("http://{HOST_IP}:12000"),
+            FakeFriendlyCaptcha::verify_url(),
         )
         .build()
 }

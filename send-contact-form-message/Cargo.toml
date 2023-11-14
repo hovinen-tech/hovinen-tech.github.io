@@ -19,9 +19,12 @@ tracing-subscriber = { version = "0.3", default-features = false, features = ["f
 
 [dev-dependencies]
 aws-sdk-lambda = "0.35.0"
+axum = { version = "0.6.20", features = ["macros"] }
 googletest = "0.10.0"
+hyper = { version = "0.14.27", features = ["full"] }
 log = "0.4.20"
 mailin-embedded = "0.8.1"
 simplelog = "0.12.1"
 testcontainers = "0.15.0"
+tower = "0.4.13"
 url = "2.4.1"
