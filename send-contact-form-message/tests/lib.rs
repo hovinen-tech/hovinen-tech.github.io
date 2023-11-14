@@ -14,6 +14,10 @@ use simplelog::{ColorChoice, CombinedLogger, Config, LevelFilter, TermLogger, Te
 use std::time::Duration;
 use tokio::time::{sleep, timeout};
 
+// Address of services which this test runs itself, as seen by the containers inside Docker. This
+// is a fixed IP address for Docker in Linux.
+const HOST_IP: &str = "172.17.0.1";
+
 #[googletest::test]
 #[tokio::test]
 async fn sends_email_to_recipient() -> Result<()> {
@@ -120,11 +124,11 @@ fn build_lambda_environment(config: &LocalStackConfig) -> Environment {
             "AWS_ENDPOINT_URL",
             format!("http://{}:{LOCALSTACK_PORT}", config.aws_host_from_subject),
         )
-        .variables("SMTP_URL", format!("smtp://172.17.0.1:{SMTP_PORT}"))
+        .variables("SMTP_URL", format!("smtp://{HOST_IP}:{SMTP_PORT}"))
         .variables(
             "FRIENDLYCAPTCHA_VERIFY_URL",
             // TODO
-            format!("http://{}:12000", config.aws_host_from_subject),
+            format!("http://{HOST_IP}:12000"),
         )
         .build()
 }
