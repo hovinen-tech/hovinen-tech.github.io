@@ -48,7 +48,13 @@ async fn sends_email_to_recipient() -> Result<()> {
     )?;
     verify_that!(
         timeout(Duration::from_secs(10), mail_content).await,
-        ok(ok(contains_substring("Test message")))
+        ok(ok(all!(
+            contains_substring("To: \"Bradford Hovinen\" <hovinen@hovinen.tech>"),
+            contains_substring("From: \"Web contact form\" <noreply@hovinen.tech>"),
+            contains_substring("Reply-To: \"Arbitrary sender\" <email@example.com>"),
+            contains_substring("Subject: Test"),
+            contains_substring("Test message")
+        )))
     )
 }
 
