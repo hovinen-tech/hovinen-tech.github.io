@@ -10,8 +10,9 @@ use aws_sdk_lambda::{
     types::{Environment, FunctionCode, FunctionConfiguration, Runtime, State},
 };
 use googletest::prelude::*;
+use regex::Regex;
 use simplelog::{ColorChoice, CombinedLogger, Config, LevelFilter, TermLogger, TerminalMode};
-use std::{sync::Arc, time::Duration};
+use std::{borrow::Cow, sync::Arc, time::Duration};
 use tokio::time::{sleep, timeout};
 
 // Address of services which this test runs itself, as seen by the containers inside Docker. This
@@ -32,12 +33,26 @@ async fn sends_email_to_recipient() -> Result<()> {
     setup_secrets(&config).await;
     let mail_content = setup_smtp();
     let (lambda_client, function_name) = setup_lambda(&config).await;
-    const PAYLOAD: &str = r#"{"headers":{"Content-Type":"application/json"},"body":"{\"name\":\"Arbitrary sender\",\"email\":\"email@example.com\",\"subject\":\"Test\",\"body\":\"Test message\",\"language\":\"en\",\"frc-captcha-solution\":\"arbitrary captcha solution\"}"}"#;
+    let payload = clean(
+        r#"{
+            "headers": {
+                "Content-Type": "application/json"
+            },
+            "body": "{
+                \"name\":\"Arbitrary sender\",
+                \"email\":\"email@example.com\",
+                \"subject\":\"Test\",
+                \"body\":\"Test message\",
+                \"language\":\"en\",
+                \"frc-captcha-solution\":\"arbitrary captcha solution\"
+            }"
+        }"#,
+    );
 
     let output = lambda_client
         .invoke()
         .function_name(function_name)
-        .payload(Blob::new(PAYLOAD))
+        .payload(Blob::new(payload.as_bytes()))
         .send()
         .await;
 
@@ -60,7 +75,7 @@ async fn sends_email_to_recipient() -> Result<()> {
 
 fn setup_logging() {
     CombinedLogger::init(vec![TermLogger::new(
-        LevelFilter::Debug,
+        LevelFilter::Info,
         Config::default(),
         TerminalMode::Mixed,
         ColorChoice::Auto,
@@ -171,4 +186,9 @@ async fn wait_for_lambda_to_be_ready(lambda_client: &aws_sdk_lambda::Client, fun
             state_reason: none()
         }))
     );
+}
+
+fn clean(raw: &str) -> Cow<str> {
+    let line_break = Regex::new("\n +").unwrap();
+    line_break.replace_all(raw, "")
 }

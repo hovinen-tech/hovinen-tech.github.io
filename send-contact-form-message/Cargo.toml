@@ -24,6 +24,7 @@ googletest = "0.10.0"
 hyper = { version = "0.14.27", features = ["full"] }
 log = "0.4.20"
 mailin-embedded = "0.8.1"
+regex = "1.10.2"
 simplelog = "0.12.1"
 testcontainers = "0.15.0"
 tower = "0.4.13"
