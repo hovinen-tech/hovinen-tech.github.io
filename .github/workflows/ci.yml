@@ -14,15 +14,13 @@ permissions: read-all
 
 env:
   CARGO_TERM_COLOR: always
+  PROJECT_PATH: send-contact-form-message/Cargo.toml
 
 jobs:
 
   clippy:
     runs-on: ubuntu-latest
     name: clippy / ${{ matrix.toolchain }}
-    defaults:
-      run:
-        working-directory: send-contact-form-message
     permissions:
       contents: read
       checks: write
@@ -41,13 +39,11 @@ jobs:
         uses: actions-rs/clippy-check@v1.0.7
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
+          args: --manifest-path $PROJECT_PATH
 
   test:
     runs-on: ubuntu-latest
     name: test / ubuntu / ${{ matrix.toolchain }}
-    defaults:
-      run:
-        working-directory: send-contact-form-message
     strategy:
       matrix:
         toolchain: [stable]
@@ -61,8 +57,8 @@ jobs:
         run: cargo install --locked cargo-lambda
       - name: cargo generate-lockfile
         if: hashFiles('Cargo.lock') == ''
-        run: cargo generate-lockfile
+        run: cargo generate-lockfile --manifest-path $PROJECT_PATH
       - name: cargo lambda build --locked
-        run: cargo lambda build --locked
+        run: cargo lambda build --locked --manifest-path $PROJECT_PATH
       - name: cargo test --locked
-        run: cargo test --locked
+        run: cargo test --locked --manifest-path $PROJECT_PATH
