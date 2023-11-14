@@ -18,6 +18,7 @@ tracing = { version = "0.1", features = ["log"] }
 tracing-subscriber = { version = "0.3", default-features = false, features = ["fmt"] }
 
 [dev-dependencies]
+test-support = { path = "../test-support" }
 aws-sdk-lambda = "0.35.0"
 axum = { version = "0.6.20", features = ["macros"] }
 googletest = "0.10.0"

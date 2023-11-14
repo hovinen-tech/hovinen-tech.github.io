@@ -1,7 +1,7 @@
+use log::debug;
 use mailin_embedded::{Handler, Server, SslConfig};
 use std::sync::{Arc, Mutex};
 use tokio::sync::oneshot::{self, Receiver, Sender};
-use tracing::debug;
 
 pub const SMTP_PORT: &str = "4567";
 

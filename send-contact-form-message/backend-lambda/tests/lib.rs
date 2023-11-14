@@ -1,10 +1,3 @@
-mod common;
-
-use crate::common::{
-    fake_friendlycaptcha::FakeFriendlyCaptcha,
-    fake_smtp::{setup_smtp, SMTP_PORT},
-    localstack_config::{LocalStackConfig, LOCALSTACK_PORT},
-};
 use aws_sdk_lambda::{
     primitives::Blob,
     types::{Environment, FunctionCode, FunctionConfiguration, Runtime, State},
@@ -14,11 +7,13 @@ use regex::Regex;
 use serde::Deserialize;
 use simplelog::{ColorChoice, CombinedLogger, Config, LevelFilter, TermLogger, TerminalMode};
 use std::{borrow::Cow, collections::HashMap, sync::Arc, time::Duration};
+use test_support::{
+    fake_friendlycaptcha::FakeFriendlyCaptcha,
+    fake_smtp::{setup_smtp, SMTP_PORT},
+    localstack_config::{LocalStackConfig, LOCALSTACK_PORT},
+    HOST_IP,
+};
 use tokio::time::{sleep, timeout};
-
-// Address of services which this test runs itself, as seen by the containers inside Docker. This
-// is a fixed IP address for Docker in Linux.
-const HOST_IP: &str = "172.17.0.1";
 
 const FAKE_FRIENDLYCAPTCHA_SITEKEY: &str = "arbitrary sitekey";
 const FAKE_FRIENDLYCAPTCHA_SECRET: &str = "arbitrary secret";
@@ -158,8 +153,12 @@ fn build_function_code() -> FunctionCode {
     FunctionCode::builder()
         .s3_bucket("hot-reload")
         .s3_key(format!(
-            "{}/target/lambda/send-contact-form-message",
-            std::env::current_dir().unwrap().to_string_lossy()
+            "{}/target/lambda/backend-lambda",
+            std::env::current_dir()
+                .unwrap()
+                .parent() // Current directory is the workspace member, lambda was built in the
+                .unwrap() // top-level workspace.
+                .to_string_lossy()
         ))
         .build()
 }

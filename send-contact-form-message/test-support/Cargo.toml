@@ -1,0 +1,23 @@
+[package]
+name = "test-support"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+aws-config = "0.57.1"
+aws-sdk-lambda = "0.35.0"
+axum = { version = "0.6.20", features = ["macros"] }
+hyper = { version = "0.14.27", features = ["full"] }
+lazy_static = "1.4.0"
+log = "0.4.20"
+mailin-embedded = "0.8.1"
+regex = "1.10.2"
+serde = { version = "1.0.190", features = ["serde_derive"] }
+serde_json = "1.0.108"
+simplelog = "0.12.1"
+testcontainers = "0.15.0"
+tokio = { version = "1", features = ["macros"] }
+tower = "0.4.13"
+url = "2.4.1"
