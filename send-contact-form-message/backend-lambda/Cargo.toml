@@ -1,0 +1,31 @@
+[package]
+name = "backend-lambda"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+aws-config = "0.57.1"
+aws-sdk-secretsmanager = "0.35.0"
+lambda_http = "0.8.1"
+lambda_runtime = "0.8.1"
+lazy_static = "1.4.0"
+lettre = { version = "0.11.1", features = ["rustls-tls", "tokio1", "tokio1-rustls-tls", "smtp-transport", "pool", "hostname", "builder"], default-features = false }
+reqwest = { version = "0.11.22", features = ["rustls", "tokio-rustls", "json", "__tls", "__rustls", "rustls-tls"], default-features = false }
+serde = { version = "1.0.190", features = ["serde_derive"] }
+serde_json = "1.0.108"
+tokio = { version = "1", features = ["macros"] }
+tracing = { version = "0.1", features = ["log"] }
+tracing-subscriber = { version = "0.3", default-features = false, features = ["fmt"] }
+
+[dev-dependencies]
+aws-sdk-lambda = "0.35.0"
+axum = { version = "0.6.20", features = ["macros"] }
+googletest = "0.10.0"
+hyper = { version = "0.14.27", features = ["full"] }
+log = "0.4.20"
+mailin-embedded = "0.8.1"
+regex = "1.10.2"
+simplelog = "0.12.1"
+testcontainers = "0.15.0"
+tower = "0.4.13"
+url = "2.4.1"
