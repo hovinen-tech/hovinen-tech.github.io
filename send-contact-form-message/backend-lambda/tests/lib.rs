@@ -3,15 +3,15 @@ use aws_sdk_lambda::{
     types::{Environment, FunctionCode, FunctionConfiguration, Runtime, State},
 };
 use googletest::prelude::*;
-use regex::Regex;
 use serde::Deserialize;
-use simplelog::{ColorChoice, CombinedLogger, Config, LevelFilter, TermLogger, TerminalMode};
-use std::{borrow::Cow, collections::HashMap, sync::Arc, time::Duration};
+use std::{collections::HashMap, time::Duration};
 use test_support::{
+    clean_payload,
     fake_friendlycaptcha::FakeFriendlyCaptcha,
     fake_smtp::{setup_smtp, SMTP_PORT},
     localstack_config::{LocalStackConfig, LOCALSTACK_PORT},
-    HOST_IP,
+    secrets::setup_secrets,
+    setup_logging, HOST_IP,
 };
 use tokio::time::{sleep, timeout};
 
@@ -31,13 +31,18 @@ struct LambdaResponsePayload {
 async fn sends_email_to_recipient() -> Result<()> {
     setup_logging();
     let config = LocalStackConfig::new().await;
-    let fake_friendlycaptcha: Arc<FakeFriendlyCaptcha> =
+    let fake_friendlycaptcha =
         FakeFriendlyCaptcha::new(FAKE_FRIENDLYCAPTCHA_SITEKEY, FAKE_FRIENDLYCAPTCHA_SECRET);
     tokio::spawn(fake_friendlycaptcha.serve());
-    setup_secrets(&config).await;
+    setup_secrets(
+        &config,
+        FAKE_FRIENDLYCAPTCHA_SITEKEY,
+        FAKE_FRIENDLYCAPTCHA_SECRET,
+    )
+    .await;
     let mail_content = setup_smtp();
     let (lambda_client, function_name) = setup_lambda(&config).await;
-    let payload = clean(
+    let payload = clean_payload(
         r#"{
             "headers": {
                 "Content-Type": "application/json"
@@ -82,54 +87,6 @@ async fn sends_email_to_recipient() -> Result<()> {
             contains_substring("Test message")
         )))
     )
-}
-
-fn setup_logging() {
-    CombinedLogger::init(vec![TermLogger::new(
-        LevelFilter::Info,
-        Config::default(),
-        TerminalMode::Mixed,
-        ColorChoice::Auto,
-    )])
-    .unwrap();
-}
-
-async fn setup_secrets(config: &LocalStackConfig) {
-    let secrets_client = aws_sdk_secretsmanager::Client::new(&config.sdk_config);
-    provision_secret(
-        &secrets_client,
-        "smtp-ses-credentials",
-        r#"{
-            "SMTP_USERNAME": "fake SMTP username",
-            "SMTP_PASSWORD": "fake SMTP password"
-        }"#,
-    )
-    .await;
-    provision_secret(
-        &secrets_client,
-        "friendlycaptcha-data",
-        format!(
-            r#"{{
-                "FRIENDLYCAPTCHA_SITEKEY": "{FAKE_FRIENDLYCAPTCHA_SITEKEY}",
-                "FRIENDLYCAPTCHA_SECRET": "{FAKE_FRIENDLYCAPTCHA_SECRET}"
-            }}"#
-        )
-        .as_str(),
-    )
-    .await;
-}
-
-async fn provision_secret(
-    secrets_client: &aws_sdk_secretsmanager::Client,
-    name: &str,
-    content: &str,
-) {
-    let _ = secrets_client
-        .create_secret()
-        .name(name)
-        .secret_string(content)
-        .send()
-        .await;
 }
 
 async fn setup_lambda(config: &LocalStackConfig) -> (aws_sdk_lambda::Client, String) {
@@ -201,9 +158,4 @@ async fn wait_for_lambda_to_be_ready(lambda_client: &aws_sdk_lambda::Client, fun
             state_reason: none()
         }))
     );
-}
-
-fn clean(raw: &str) -> Cow<str> {
-    let line_break = Regex::new("\n +").unwrap();
-    line_break.replace_all(raw, "")
 }

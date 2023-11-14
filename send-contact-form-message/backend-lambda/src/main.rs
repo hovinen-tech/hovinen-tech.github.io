@@ -262,11 +262,11 @@ fn smtp_url() -> Cow<'static, str> {
 }
 
 async fn fetch_secret<T: DeserializeOwned>(name: &'static str) -> Result<T, Error> {
-    let config = aws_config::from_env()
-        .endpoint_url(std::env::var("AWS_ENDPOINT_URL").unwrap_or("".to_string()))
-        .region("eu-north-1")
-        .load()
-        .await;
+    let mut loader = aws_config::from_env().region("eu-north-1");
+    if let Ok(url) = std::env::var("AWS_ENDPOINT_URL") {
+        loader = loader.endpoint_url(url);
+    }
+    let config = loader.load().await;
     let secrets_client = aws_sdk_secretsmanager::Client::new(&config);
 
     let secret = secrets_client
@@ -300,5 +300,99 @@ async fn get_memoized<T: Clone, F: Future<Output = Result<T, Error>>>(
             *guard = Some(data.clone());
             Ok(data)
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::function_handler;
+    use googletest::prelude::*;
+    use lambda_http::{http::HeaderValue, Body, Request};
+    use serial_test::serial;
+    use test_support::{
+        clean_payload, fake_friendlycaptcha::FakeFriendlyCaptcha,
+        localstack_config::LocalStackConfig, secrets::setup_secrets,
+    };
+
+    const FAKE_FRIENDLYCAPTCHA_SITEKEY: &str = "arbitrary sitekey";
+    const FAKE_FRIENDLYCAPTCHA_SECRET: &str = "arbitrary secret";
+
+    #[tokio::test]
+    #[serial]
+    async fn returns_400_when_captcha_solution_does_not_validate() -> Result<()> {
+        let config = LocalStackConfig::new().await;
+        std::env::set_var(
+            "AWS_ENDPOINT_URL",
+            config.sdk_config.endpoint_url().unwrap(),
+        );
+        let fake_friendlycaptcha =
+            FakeFriendlyCaptcha::new(FAKE_FRIENDLYCAPTCHA_SITEKEY, FAKE_FRIENDLYCAPTCHA_SECRET)
+                .require_solution("correct captcha solution");
+        tokio::spawn(fake_friendlycaptcha.serve());
+        setup_secrets(
+            &config,
+            FAKE_FRIENDLYCAPTCHA_SITEKEY,
+            FAKE_FRIENDLYCAPTCHA_SECRET,
+        )
+        .await;
+        let mut event = Request::new(Body::Text(
+            clean_payload(
+                r#"{
+                    "name":"Arbitrary sender",
+                    "email":"email@example.com",
+                    "subject":"Test",
+                    "body":"Test message",
+                    "language":"en",
+                    "frc-captcha-solution":"incorrect captcha solution"
+                }"#,
+            )
+            .into(),
+        ));
+        event
+            .headers_mut()
+            .append("Content-Type", HeaderValue::from_static("application/json"));
+
+        let response = function_handler(event).await.unwrap();
+
+        verify_that!(response.status().as_u16(), eq(400))
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn returns_400_when_captcha_solution_is_missing() -> Result<()> {
+        let config = LocalStackConfig::new().await;
+        std::env::set_var(
+            "AWS_ENDPOINT_URL",
+            config.sdk_config.endpoint_url().unwrap(),
+        );
+        let fake_friendlycaptcha =
+            FakeFriendlyCaptcha::new(FAKE_FRIENDLYCAPTCHA_SITEKEY, FAKE_FRIENDLYCAPTCHA_SECRET)
+                .require_solution("correct captcha solution");
+        tokio::spawn(fake_friendlycaptcha.serve());
+        setup_secrets(
+            &config,
+            FAKE_FRIENDLYCAPTCHA_SITEKEY,
+            FAKE_FRIENDLYCAPTCHA_SECRET,
+        )
+        .await;
+        let mut event = Request::new(Body::Text(
+            clean_payload(
+                r#"{
+                    "name":"Arbitrary sender",
+                    "email":"email@example.com",
+                    "subject":"Test",
+                    "body":"Test message",
+                    "language":"en"
+                }"#,
+            )
+            .into(),
+        ));
+        event
+            .headers_mut()
+            .append("Content-Type", HeaderValue::from_static("application/json"));
+
+        let response = function_handler(event).await.unwrap();
+
+        verify_that!(response.status().as_u16(), eq(400))
     }
 }

@@ -14,6 +14,7 @@ const VERIFY_PATH: &str = "/verify";
 pub struct FakeFriendlyCaptcha {
     required_sitekey: Cow<'static, str>,
     required_secret: Cow<'static, str>,
+    required_solution: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -39,6 +40,7 @@ impl FakeFriendlyCaptcha {
         Arc::new(Self {
             required_sitekey: required_sitekey.into(),
             required_secret: required_secret.into(),
+            required_solution: None,
         })
     }
 
@@ -50,6 +52,14 @@ impl FakeFriendlyCaptcha {
             .serve(app.into_make_service())
             .await
             .unwrap();
+    }
+
+    pub fn require_solution(self: Arc<Self>, required_solution: impl AsRef<str>) -> Arc<Self> {
+        Arc::new(Self {
+            required_sitekey: self.required_sitekey.clone(),
+            required_secret: self.required_secret.clone(),
+            required_solution: Some(required_solution.as_ref().into()),
+        })
     }
 
     pub fn verify_url() -> String {
@@ -77,12 +87,21 @@ async fn verify(
                 errors: vec!["bad-secet".into()],
             }),
         )
-    } else {
+    } else if state.required_solution.is_none() || Some(payload.solution) == state.required_solution
+    {
         (
             StatusCode::OK,
             Json(VerifyResponsePayload {
                 success: true,
                 errors: vec![],
+            }),
+        )
+    } else {
+        (
+            StatusCode::OK,
+            Json(VerifyResponsePayload {
+                success: false,
+                errors: vec!["incorrect-solution".into()],
             }),
         )
     }
