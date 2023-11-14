@@ -1,4 +1,4 @@
-use mailin_embedded::{AuthMechanism, Handler, Server, SslConfig};
+use mailin_embedded::{Handler, Server, SslConfig};
 use std::sync::{Arc, Mutex};
 use tokio::sync::oneshot::{self, Receiver, Sender};
 use tracing::debug;
@@ -46,8 +46,7 @@ pub fn setup_smtp() -> Receiver<String> {
         .with_ssl(SslConfig::None)
         .unwrap()
         .with_addr(format!("0.0.0.0:{SMTP_PORT}"))
-        .unwrap()
-        .with_auth(AuthMechanism::Plain);
+        .unwrap();
     std::thread::spawn(|| {
         let _ = server.serve();
     });

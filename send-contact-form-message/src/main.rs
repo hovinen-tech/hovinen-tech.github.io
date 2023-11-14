@@ -236,17 +236,23 @@ struct SmtpCredentials {
 }
 
 async fn initialise_mailer() -> Result<Arc<AsyncSmtpTransport<Tokio1Executor>>, Error> {
-    let parsed_credentials: SmtpCredentials = fetch_secret(SMTP_CREDENTIALS_NAME).await?;
+    let smtp_url = smtp_url();
+    let mut builder = AsyncSmtpTransport::<Tokio1Executor>::from_url(&smtp_url)?
+        .authentication(vec![Mechanism::Plain]);
 
-    Ok(Arc::new(
-        AsyncSmtpTransport::<Tokio1Executor>::from_url(&smtp_url())?
-            .authentication(vec![Mechanism::Plain])
-            .credentials(Credentials::new(
-                parsed_credentials.username,
-                parsed_credentials.password,
-            ))
-            .build(),
-    ))
+    // Sending credentials over a non-TLS connection is risky, so we only set the credentials
+    // when the connection URL is over TLS. If the environment is misconfigured so that
+    // the credentials are not sent, the connection will be rejected. This is better than a
+    // security breach.
+    if smtp_url.starts_with("smtps://") {
+        let parsed_credentials: SmtpCredentials = fetch_secret(SMTP_CREDENTIALS_NAME).await?;
+        builder = builder.credentials(Credentials::new(
+            parsed_credentials.username,
+            parsed_credentials.password,
+        ));
+    }
+
+    Ok(Arc::new(builder.build()))
 }
 
 fn smtp_url() -> Cow<'static, str> {

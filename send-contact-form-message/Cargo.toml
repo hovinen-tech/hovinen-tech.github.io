@@ -21,7 +21,7 @@ tracing-subscriber = { version = "0.3", default-features = false, features = ["f
 aws-sdk-lambda = "0.35.0"
 googletest = "0.10.0"
 log = "0.4.20"
-mailin-embedded = { version = "0.8.1", path = "../../mailin/mailin-embedded" }
+mailin-embedded = "0.8.1"
 simplelog = "0.12.1"
 testcontainers = "0.15.0"
 url = "2.4.1"
