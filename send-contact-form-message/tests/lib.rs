@@ -11,8 +11,9 @@ use aws_sdk_lambda::{
 };
 use googletest::prelude::*;
 use regex::Regex;
+use serde::Deserialize;
 use simplelog::{ColorChoice, CombinedLogger, Config, LevelFilter, TermLogger, TerminalMode};
-use std::{borrow::Cow, sync::Arc, time::Duration};
+use std::{borrow::Cow, collections::HashMap, sync::Arc, time::Duration};
 use tokio::time::{sleep, timeout};
 
 // Address of services which this test runs itself, as seen by the containers inside Docker. This
@@ -21,6 +22,14 @@ const HOST_IP: &str = "172.17.0.1";
 
 const FAKE_FRIENDLYCAPTCHA_SITEKEY: &str = "arbitrary sitekey";
 const FAKE_FRIENDLYCAPTCHA_SECRET: &str = "arbitrary secret";
+
+#[derive(Deserialize, Debug)]
+#[serde(rename_all = "camelCase")]
+struct LambdaResponsePayload {
+    status_code: Option<u32>,
+    headers: HashMap<String, String>,
+    error_message: Option<String>,
+}
 
 #[googletest::test]
 #[tokio::test]
@@ -58,8 +67,15 @@ async fn sends_email_to_recipient() -> Result<()> {
 
     verify_that!(output, ok(anything()))?;
     verify_that!(
-        String::from_utf8(output.unwrap().payload.unwrap().into_inner()),
-        ok(not(contains_substring("errorMessage")))
+        serde_json::from_slice(&output.unwrap().payload.unwrap().into_inner()),
+        ok(matches_pattern!(LambdaResponsePayload {
+            status_code: some(eq(303)),
+            headers: has_entry(
+                "location".to_string(),
+                eq("https://hovinen-tech.github.io/email-sent.html")
+            ),
+            error_message: none(),
+        }))
     )?;
     verify_that!(
         timeout(Duration::from_secs(10), mail_content).await,
