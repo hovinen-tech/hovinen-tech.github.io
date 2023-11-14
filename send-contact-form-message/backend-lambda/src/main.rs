@@ -131,7 +131,7 @@ async fn send_message(message: ContactFormMessage) -> Result<String, MessageErro
         .header(ContentType::TEXT_PLAIN)
         .body(body)
         .map_err(MessageError::BadMessage)?;
-    let mailer = get_memoized(&MAILER, || initialise_mailer()).await.unwrap();
+    let mailer = get_memoized(&MAILER, initialise_mailer).await.unwrap();
     match mailer.send(email).await {
         Ok(_) => Ok(language),
         Err(e) => Err(MessageError::SendError(e)),

@@ -36,7 +36,7 @@ impl LocalStackConfig {
     }
 
     fn get_aws_endpoint_url() -> (String, String, Option<Container<'static, GenericImage>>) {
-        if let Ok(_) = std::env::var("USE_RUNNING_LOCALSTACK") {
+        if std::env::var("USE_RUNNING_LOCALSTACK").is_ok() {
             info!("Using already running LocalStack due to environment variable USE_RUNNING_LOCALSTACK");
             let localstack_container_ip = Self::get_container_ip_from_running_localstack();
             (
@@ -96,6 +96,8 @@ impl LocalStackConfig {
 
 impl Drop for LocalStackConfig {
     fn drop(&mut self) {
-        self.container.as_ref().map(|c| c.stop());
+        if let Some(c) = self.container.as_ref() {
+            c.stop()
+        }
     }
 }
