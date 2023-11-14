@@ -15,7 +15,7 @@ lazy_static! {
 pub struct LocalStackConfig {
     pub aws_host_from_subject: String,
     pub sdk_config: SdkConfig,
-    _container: Option<Container<'static, GenericImage>>,
+    container: Option<Container<'static, GenericImage>>,
 }
 
 impl LocalStackConfig {
@@ -31,7 +31,7 @@ impl LocalStackConfig {
         Self {
             aws_host_from_subject,
             sdk_config,
-            _container: container,
+            container,
         }
     }
 
@@ -91,5 +91,11 @@ impl LocalStackConfig {
             format!("{}", container.get_bridge_ip_address()),
             container,
         )
+    }
+}
+
+impl Drop for LocalStackConfig {
+    fn drop(&mut self) {
+        self.container.as_ref().map(|c| c.stop());
     }
 }
