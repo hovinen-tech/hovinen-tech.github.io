@@ -37,6 +37,7 @@ impl LocalStackConfig {
 
     fn get_aws_endpoint_url() -> (String, String, Option<Container<'static, GenericImage>>) {
         if let Ok(_) = std::env::var("USE_RUNNING_LOCALSTACK") {
+            info!("Using already running LocalStack due to environment variable USE_RUNNING_LOCALSTACK");
             let localstack_container_ip = Self::get_container_ip_from_running_localstack();
             (
                 format!("http://{localstack_container_ip}:{LOCALSTACK_PORT}"),
@@ -44,6 +45,7 @@ impl LocalStackConfig {
                 None,
             )
         } else {
+            info!("Starting own LocalStack instance");
             let (aws_endpoint_url_from_test, aws_host_from_subject, container) =
                 Self::run_localstack_returning_endpoint_url();
             (
