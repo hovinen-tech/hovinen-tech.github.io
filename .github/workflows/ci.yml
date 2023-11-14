@@ -39,7 +39,7 @@ jobs:
         uses: actions-rs/clippy-check@v1.0.7
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-          args: --manifest-path $PROJECT_PATH
+          args: --manifest-path send-contact-form-message/Cargo.toml
 
   test:
     runs-on: ubuntu-latest
