@@ -1,4 +1,5 @@
-use async_trait::async_trait;
+mod secrets;
+
 use lambda_http::{run, service_fn, Body, Error, Request, RequestPayloadExt, Response};
 use lazy_static::lazy_static;
 use lettre::{
@@ -7,6 +8,7 @@ use lettre::{
     AsyncSmtpTransport, AsyncTransport, Message, Tokio1Executor,
 };
 use reqwest::Client;
+use secrets::{AwsSecretsManagerSecretRepository, SecretRepository};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use std::{borrow::Cow, fmt::Display, future::Future, marker::PhantomData, sync::Arc};
 use tokio::sync::Mutex;
@@ -78,36 +80,6 @@ impl std::fmt::Display for MessageError {
 }
 
 impl std::error::Error for MessageError {}
-
-#[async_trait]
-trait SecretRepository {
-    async fn open() -> Self;
-
-    async fn get_secret<T: DeserializeOwned>(&self, name: &'static str) -> Result<T, Error>;
-}
-
-struct AwsSecretsManagerSecretRepository(aws_sdk_secretsmanager::Client);
-
-#[async_trait]
-impl SecretRepository for AwsSecretsManagerSecretRepository {
-    async fn open() -> Self {
-        let mut loader = aws_config::from_env().region("eu-north-1");
-        if let Ok(url) = std::env::var("AWS_ENDPOINT_URL") {
-            loader = loader.endpoint_url(url);
-        }
-        let config = loader.load().await;
-        let secrets_client = aws_sdk_secretsmanager::Client::new(&config);
-        Self(secrets_client)
-    }
-
-    async fn get_secret<T: DeserializeOwned>(&self, name: &'static str) -> Result<T, Error> {
-        let secret = self.0.get_secret_value().secret_id(name).send().await?;
-        let Some(secret_value) = secret.secret_string() else {
-            return Err(Box::new(EnvironmentError::MissingSecret(name)));
-        };
-        Ok(serde_json::from_str(secret_value)?)
-    }
-}
 
 struct ContactFormMessageHandler<SecretRepositoryT: SecretRepository>(
     PhantomData<SecretRepositoryT>,
@@ -258,7 +230,9 @@ impl<SecretRepositoryT: SecretRepository> ContactFormMessageHandler<SecretReposi
             .unwrap_or(SMTP_URL.into())
     }
 
-    async fn fetch_secret<T: DeserializeOwned>(name: &'static str) -> Result<T, Error> {
+    async fn fetch_secret<T: DeserializeOwned>(
+        name: &'static str,
+    ) -> Result<T, lambda_http::Error> {
         let repository = SecretRepositoryT::open().await;
         repository.get_secret(name).await
     }
@@ -334,52 +308,14 @@ async fn get_memoized<T: Clone, F: Future<Output = Result<T, Error>>>(
 
 #[cfg(test)]
 mod tests {
-    use super::{
-        ContactFormMessageHandler, SecretRepository, FRIENDLYCAPTCHA_DATA_NAME,
-        SMTP_CREDENTIALS_NAME,
+    use super::ContactFormMessageHandler;
+    use crate::secrets::test_support::{
+        FakeSecretRepsitory, FAKE_FRIENDLYCAPTCHA_SECRET, FAKE_FRIENDLYCAPTCHA_SITEKEY,
     };
-    use async_trait::async_trait;
     use googletest::prelude::*;
     use lambda_http::{http::HeaderValue, Body, Request};
-    use serde::de::DeserializeOwned;
     use serial_test::serial;
     use test_support::{clean_payload, fake_friendlycaptcha::FakeFriendlyCaptcha};
-
-    const FAKE_FRIENDLYCAPTCHA_SITEKEY: &str = "arbitrary sitekey";
-    const FAKE_FRIENDLYCAPTCHA_SECRET: &str = "arbitrary secret";
-
-    struct FakeSecretRepsitory;
-
-    #[async_trait]
-    impl SecretRepository for FakeSecretRepsitory {
-        async fn open() -> Self {
-            Self
-        }
-
-        async fn get_secret<T: DeserializeOwned>(
-            &self,
-            name: &'static str,
-        ) -> std::result::Result<T, lambda_http::Error> {
-            match name {
-                SMTP_CREDENTIALS_NAME => Ok(serde_json::from_str(
-                    r#"{
-                        "SMTP_USERNAME": "fake SMTP username",
-                        "SMTP_PASSWORD": "fake SMTP password"
-                    }"#,
-                )?),
-                FRIENDLYCAPTCHA_DATA_NAME => Ok(serde_json::from_str(
-                    format!(
-                        r#"{{
-                            "FRIENDLYCAPTCHA_SITEKEY": "{FAKE_FRIENDLYCAPTCHA_SITEKEY}",
-                            "FRIENDLYCAPTCHA_SECRET": "{FAKE_FRIENDLYCAPTCHA_SECRET}"
-                        }}"#
-                    )
-                    .as_str(),
-                )?),
-                _ => panic!("Unknown secret {name}"),
-            }
-        }
-    }
 
     type ContactFormMessageHandlerForTesting = ContactFormMessageHandler<FakeSecretRepsitory>;
 
