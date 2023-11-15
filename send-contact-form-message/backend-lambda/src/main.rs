@@ -59,7 +59,7 @@ impl<SecretRepositoryT: SecretRepository> ContactFormMessageHandler<SecretReposi
                 language: "en".into(),
             };
             error.log();
-            return Ok(error.to_response());
+            return Ok(error.into_response());
         };
         match Self::send_message(message).await {
             Ok(language) => Ok(Response::builder()
@@ -69,7 +69,7 @@ impl<SecretRepositoryT: SecretRepository> ContactFormMessageHandler<SecretReposi
                 .unwrap()),
             Err(error) => {
                 error.log();
-                Ok(error.to_response())
+                Ok(error.into_response())
             }
         }
     }
@@ -91,7 +91,7 @@ impl<SecretRepositoryT: SecretRepository> ContactFormMessageHandler<SecretReposi
         Self::verify_friendlycaptcha_token(friendlycaptcha_token)
             .await
             .map_err(|e| {
-                e.to_contact_form_error(subject.clone(), body.clone(), language.clone())
+                e.into_contact_form_error(subject.clone(), body.clone(), language.clone())
             })?;
         let reply_to_string = if let Some(name) = name {
             format!("{} <{}>", name, email)
@@ -315,7 +315,7 @@ impl ContactFormError {
         }
     }
 
-    fn to_response(self) -> Response<Body> {
+    fn into_response(self) -> Response<Body> {
         match self {
             ContactFormError::InternalError {
                 subject,
@@ -357,7 +357,7 @@ enum FriendlyCaptchaError {
 }
 
 impl FriendlyCaptchaError {
-    fn to_contact_form_error(
+    fn into_contact_form_error(
         self,
         subject: String,
         body: String,
@@ -371,7 +371,7 @@ impl FriendlyCaptchaError {
                 language,
             },
             FriendlyCaptchaError::IncorrectSecret => ContactFormError::InternalError {
-                description: format!("Incorrect FriendlyCaptcha secret"),
+                description: "Incorrect FriendlyCaptcha secret".into(),
                 subject,
                 body,
                 language,

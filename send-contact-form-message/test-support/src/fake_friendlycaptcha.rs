@@ -69,7 +69,7 @@ impl FakeFriendlyCaptcha {
             .unwrap();
     }
 
-    pub fn require_solution(self: Self, required_solution: impl AsRef<str>) -> Self {
+    pub fn require_solution(self, required_solution: impl AsRef<str>) -> Self {
         Self {
             required_solution: Some(required_solution.as_ref().into()),
             ..self

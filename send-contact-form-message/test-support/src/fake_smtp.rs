@@ -84,3 +84,9 @@ impl FakeSmtpServer {
         std::env::set_var("SMTP_URL", format!("smtp://localhost:{SMTP_PORT}"));
     }
 }
+
+impl Default for FakeSmtpServer {
+    fn default() -> Self {
+        Self::new()
+    }
+}
