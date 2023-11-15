@@ -1,3 +1,4 @@
+use async_trait::async_trait;
 use lambda_http::{run, service_fn, Body, Error, Request, RequestPayloadExt, Response};
 use lazy_static::lazy_static;
 use lettre::{
@@ -7,7 +8,7 @@ use lettre::{
 };
 use reqwest::Client;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
-use std::{borrow::Cow, fmt::Display, future::Future, sync::Arc};
+use std::{borrow::Cow, fmt::Display, future::Future, marker::PhantomData, sync::Arc};
 use tokio::sync::Mutex;
 use tracing::warn;
 
@@ -34,7 +35,10 @@ async fn main() -> Result<(), Error> {
         .without_time()
         .init();
 
-    run(service_fn(function_handler)).await
+    run(service_fn(
+        ContactFormMessageHandler::<AwsSecretsManagerSecretRepository>::handle,
+    ))
+    .await
 }
 
 #[derive(Deserialize, Debug)]
@@ -75,66 +79,196 @@ impl std::fmt::Display for MessageError {
 
 impl std::error::Error for MessageError {}
 
-async fn function_handler(event: Request) -> Result<Response<Body>, Error> {
-    let Some(message) = event.payload()? else {
-        return Err(Box::new(MessageError::MissingPayload));
-    };
-    match send_message(message).await {
-        Ok(language) => Ok(Response::builder()
-            .status(303)
-            .header("Location", create_success_url(language.as_str()))
-            .body("".into())
-            .unwrap()),
-        Err(MessageError::MissingFieldsInRequest) => Ok(Response::builder()
-            .status(400)
-            .body("Malformed request: missing fields".into())
-            .unwrap()),
-        Err(MessageError::FriendlyCaptchaTokenError(errors)) => Ok(Response::builder()
-            .status(400)
-            .body(format!("Captcha verification error: {errors:?}").into())
-            .unwrap()),
-        // TODO: This can happen without a bug on the contact form, so redirect to an error page.
-        Err(MessageError::BadEmail(email)) => Ok(Response::builder()
-            .status(400)
-            .body(format!("Malformed request: bad email address {email}").into())
-            .unwrap()),
-        Err(error) => Err(Box::new(error)),
+#[async_trait]
+trait SecretRepository {
+    async fn open() -> Self;
+
+    async fn get_secret<T: DeserializeOwned>(&self, name: &'static str) -> Result<T, Error>;
+}
+
+struct AwsSecretsManagerSecretRepository(aws_sdk_secretsmanager::Client);
+
+#[async_trait]
+impl SecretRepository for AwsSecretsManagerSecretRepository {
+    async fn open() -> Self {
+        let mut loader = aws_config::from_env().region("eu-north-1");
+        if let Ok(url) = std::env::var("AWS_ENDPOINT_URL") {
+            loader = loader.endpoint_url(url);
+        }
+        let config = loader.load().await;
+        let secrets_client = aws_sdk_secretsmanager::Client::new(&config);
+        Self(secrets_client)
+    }
+
+    async fn get_secret<T: DeserializeOwned>(&self, name: &'static str) -> Result<T, Error> {
+        let secret = self.0.get_secret_value().secret_id(name).send().await?;
+        let Some(secret_value) = secret.secret_string() else {
+            return Err(Box::new(EnvironmentError::MissingSecret(name)));
+        };
+        Ok(serde_json::from_str(secret_value)?)
     }
 }
 
-async fn send_message(message: ContactFormMessage) -> Result<String, MessageError> {
-    let ContactFormMessage {
-        name,
-        email: Some(email),
-        subject: Some(subject),
-        body: Some(body),
-        language: Some(language),
-        friendlycaptcha_token: Some(friendlycaptcha_token),
-    } = message
-    else {
-        return Err(MessageError::MissingFieldsInRequest);
-    };
-    verify_friendlycaptcha_token(friendlycaptcha_token).await?;
-    let reply_to_string = if let Some(name) = name {
-        format!("{} <{}>", name, email)
-    } else {
-        email.clone()
-    };
-    let Ok(reply_to_email) = reply_to_string.parse() else {
-        return Err(MessageError::BadEmail(email));
-    };
-    let email = Message::builder()
-        .from(FROM_ADDRESS.clone())
-        .reply_to(reply_to_email)
-        .to(TO_ADDRESS.clone())
-        .subject(subject)
-        .header(ContentType::TEXT_PLAIN)
-        .body(body)
-        .map_err(MessageError::BadMessage)?;
-    let mailer = get_memoized(&MAILER, initialise_mailer).await.unwrap();
-    match mailer.send(email).await {
-        Ok(_) => Ok(language),
-        Err(e) => Err(MessageError::SendError(e)),
+struct ContactFormMessageHandler<SecretRepositoryT: SecretRepository>(
+    PhantomData<SecretRepositoryT>,
+);
+
+impl<SecretRepositoryT: SecretRepository> ContactFormMessageHandler<SecretRepositoryT> {
+    async fn handle(event: Request) -> Result<Response<Body>, Error> {
+        let Some(message) = event.payload()? else {
+            return Err(Box::new(MessageError::MissingPayload));
+        };
+        match Self::send_message(message).await {
+            Ok(language) => Ok(Response::builder()
+                .status(303)
+                .header("Location", Self::create_success_url(language.as_str()))
+                .body("".into())
+                .unwrap()),
+            Err(MessageError::MissingFieldsInRequest) => Ok(Response::builder()
+                .status(400)
+                .body("Malformed request: missing fields".into())
+                .unwrap()),
+            Err(MessageError::FriendlyCaptchaTokenError(errors)) => Ok(Response::builder()
+                .status(400)
+                .body(format!("Captcha verification error: {errors:?}").into())
+                .unwrap()),
+            // TODO: This can happen without a bug on the contact form, so redirect to an error page.
+            Err(MessageError::BadEmail(email)) => Ok(Response::builder()
+                .status(400)
+                .body(format!("Malformed request: bad email address {email}").into())
+                .unwrap()),
+            Err(error) => Err(Box::new(error)),
+        }
+    }
+
+    async fn send_message(message: ContactFormMessage) -> Result<String, MessageError> {
+        let ContactFormMessage {
+            name,
+            email: Some(email),
+            subject: Some(subject),
+            body: Some(body),
+            language: Some(language),
+            friendlycaptcha_token: Some(friendlycaptcha_token),
+        } = message
+        else {
+            return Err(MessageError::MissingFieldsInRequest);
+        };
+        Self::verify_friendlycaptcha_token(friendlycaptcha_token).await?;
+        let reply_to_string = if let Some(name) = name {
+            format!("{} <{}>", name, email)
+        } else {
+            email.clone()
+        };
+        let Ok(reply_to_email) = reply_to_string.parse() else {
+            return Err(MessageError::BadEmail(email));
+        };
+        let email = Message::builder()
+            .from(FROM_ADDRESS.clone())
+            .reply_to(reply_to_email)
+            .to(TO_ADDRESS.clone())
+            .subject(subject)
+            .header(ContentType::TEXT_PLAIN)
+            .body(body)
+            .map_err(MessageError::BadMessage)?;
+        let mailer = get_memoized(&MAILER, Self::initialise_mailer)
+            .await
+            .unwrap();
+        match mailer.send(email).await {
+            Ok(_) => Ok(language),
+            Err(e) => Err(MessageError::SendError(e)),
+        }
+    }
+
+    async fn verify_friendlycaptcha_token(solution: String) -> Result<(), MessageError> {
+        let data = get_memoized(&FRIENDLYCAPTCHA_DATA, || {
+            Self::fetch_secret(FRIENDLYCAPTCHA_DATA_NAME)
+        })
+        .await
+        .unwrap();
+        let payload = FriendlyCaptchaVerifyPayload {
+            solution,
+            sitekey: data.sitekey,
+            secret: data.secret,
+        };
+        let response = match Client::new()
+            .post(Self::friendlycaptcha_verify_url().as_ref())
+            .json(&payload)
+            .send()
+            .await
+        {
+            Ok(response) => response,
+            Err(error) => {
+                if let Some(status) = error.status() {
+                    if status.is_client_error() {
+                        panic!("Client error when communicating to FriendlyCaptcha.");
+                    }
+                }
+                warn!("Error verifying FriendlyCaptcha solution: {error}");
+                warn!("Letting request pass without verification.");
+                return Ok(());
+            }
+        };
+        let response_body: FriendlyCaptchaResponse = match response.json().await {
+            Ok(body) => body,
+            Err(error) => {
+                warn!("Error fetching body from FriendlyCaptcha: {error}");
+                warn!("Letting request pass without verification.");
+                return Ok(());
+            }
+        };
+        if response_body.success {
+            Ok(())
+        } else {
+            Err(MessageError::FriendlyCaptchaTokenError(
+                response_body.errors,
+            ))
+        }
+    }
+
+    fn friendlycaptcha_verify_url() -> Cow<'static, str> {
+        std::env::var("FRIENDLYCAPTCHA_VERIFY_URL")
+            .map(Cow::Owned)
+            .unwrap_or(FRIENDLYCAPTCHA_VERIFY_URL.into())
+    }
+
+    async fn initialise_mailer() -> Result<Arc<AsyncSmtpTransport<Tokio1Executor>>, Error> {
+        let smtp_url = Self::smtp_url();
+        let mut builder = AsyncSmtpTransport::<Tokio1Executor>::from_url(&smtp_url)?
+            .authentication(vec![Mechanism::Plain]);
+
+        // Sending credentials over a non-TLS connection is risky, so we only set the credentials
+        // when the connection URL is over TLS. If the environment is misconfigured so that
+        // the credentials are not sent, the connection will be rejected. This is better than a
+        // security breach.
+        if smtp_url.starts_with("smtps://") {
+            let parsed_credentials: SmtpCredentials =
+                Self::fetch_secret(SMTP_CREDENTIALS_NAME).await?;
+            builder = builder.credentials(Credentials::new(
+                parsed_credentials.username,
+                parsed_credentials.password,
+            ));
+        }
+
+        Ok(Arc::new(builder.build()))
+    }
+
+    fn smtp_url() -> Cow<'static, str> {
+        std::env::var("SMTP_URL")
+            .map(Cow::Owned)
+            .unwrap_or(SMTP_URL.into())
+    }
+
+    async fn fetch_secret<T: DeserializeOwned>(name: &'static str) -> Result<T, Error> {
+        let repository = SecretRepositoryT::open().await;
+        repository.get_secret(name).await
+    }
+
+    fn create_success_url(language: &str) -> String {
+        if language == "en" {
+            format!("https://{BASE_HOST}/email-sent.html")
+        } else {
+            format!("https://{BASE_HOST}/email-sent.{language}.html")
+        }
     }
 }
 
@@ -160,58 +294,6 @@ struct FriendlyCaptchaResponse {
     errors: Vec<String>,
 }
 
-async fn verify_friendlycaptcha_token(solution: String) -> Result<(), MessageError> {
-    let data = get_memoized(&FRIENDLYCAPTCHA_DATA, || {
-        fetch_secret(FRIENDLYCAPTCHA_DATA_NAME)
-    })
-    .await
-    .unwrap();
-    let payload = FriendlyCaptchaVerifyPayload {
-        solution,
-        sitekey: data.sitekey,
-        secret: data.secret,
-    };
-    let response = match Client::new()
-        .post(friendlycaptcha_verify_url().as_ref())
-        .json(&payload)
-        .send()
-        .await
-    {
-        Ok(response) => response,
-        Err(error) => {
-            if let Some(status) = error.status() {
-                if status.is_client_error() {
-                    panic!("Client error when communicating to FriendlyCaptcha.");
-                }
-            }
-            warn!("Error verifying FriendlyCaptcha solution: {error}");
-            warn!("Letting request pass without verification.");
-            return Ok(());
-        }
-    };
-    let response_body: FriendlyCaptchaResponse = match response.json().await {
-        Ok(body) => body,
-        Err(error) => {
-            warn!("Error fetching body from FriendlyCaptcha: {error}");
-            warn!("Letting request pass without verification.");
-            return Ok(());
-        }
-    };
-    if response_body.success {
-        Ok(())
-    } else {
-        Err(MessageError::FriendlyCaptchaTokenError(
-            response_body.errors,
-        ))
-    }
-}
-
-fn friendlycaptcha_verify_url() -> Cow<'static, str> {
-    std::env::var("FRIENDLYCAPTCHA_VERIFY_URL")
-        .map(Cow::Owned)
-        .unwrap_or(FRIENDLYCAPTCHA_VERIFY_URL.into())
-}
-
 #[derive(Debug)]
 enum EnvironmentError {
     MissingSecret(&'static str),
@@ -235,59 +317,6 @@ struct SmtpCredentials {
     password: String,
 }
 
-async fn initialise_mailer() -> Result<Arc<AsyncSmtpTransport<Tokio1Executor>>, Error> {
-    let smtp_url = smtp_url();
-    let mut builder = AsyncSmtpTransport::<Tokio1Executor>::from_url(&smtp_url)?
-        .authentication(vec![Mechanism::Plain]);
-
-    // Sending credentials over a non-TLS connection is risky, so we only set the credentials
-    // when the connection URL is over TLS. If the environment is misconfigured so that
-    // the credentials are not sent, the connection will be rejected. This is better than a
-    // security breach.
-    if smtp_url.starts_with("smtps://") {
-        let parsed_credentials: SmtpCredentials = fetch_secret(SMTP_CREDENTIALS_NAME).await?;
-        builder = builder.credentials(Credentials::new(
-            parsed_credentials.username,
-            parsed_credentials.password,
-        ));
-    }
-
-    Ok(Arc::new(builder.build()))
-}
-
-fn smtp_url() -> Cow<'static, str> {
-    std::env::var("SMTP_URL")
-        .map(Cow::Owned)
-        .unwrap_or(SMTP_URL.into())
-}
-
-async fn fetch_secret<T: DeserializeOwned>(name: &'static str) -> Result<T, Error> {
-    let mut loader = aws_config::from_env().region("eu-north-1");
-    if let Ok(url) = std::env::var("AWS_ENDPOINT_URL") {
-        loader = loader.endpoint_url(url);
-    }
-    let config = loader.load().await;
-    let secrets_client = aws_sdk_secretsmanager::Client::new(&config);
-
-    let secret = secrets_client
-        .get_secret_value()
-        .secret_id(name)
-        .send()
-        .await?;
-    let Some(secret_value) = secret.secret_string() else {
-        return Err(Box::new(EnvironmentError::MissingSecret(name)));
-    };
-    Ok(serde_json::from_str(secret_value)?)
-}
-
-fn create_success_url(language: &str) -> String {
-    if language == "en" {
-        format!("https://{BASE_HOST}/email-sent.html")
-    } else {
-        format!("https://{BASE_HOST}/email-sent.{language}.html")
-    }
-}
-
 async fn get_memoized<T: Clone, F: Future<Output = Result<T, Error>>>(
     mutex: &Mutex<Option<T>>,
     factory: impl FnOnce() -> F,
@@ -305,36 +334,62 @@ async fn get_memoized<T: Clone, F: Future<Output = Result<T, Error>>>(
 
 #[cfg(test)]
 mod tests {
-    use super::function_handler;
+    use super::{
+        ContactFormMessageHandler, SecretRepository, FRIENDLYCAPTCHA_DATA_NAME,
+        SMTP_CREDENTIALS_NAME,
+    };
+    use async_trait::async_trait;
     use googletest::prelude::*;
     use lambda_http::{http::HeaderValue, Body, Request};
+    use serde::de::DeserializeOwned;
     use serial_test::serial;
-    use test_support::{
-        clean_payload, fake_friendlycaptcha::FakeFriendlyCaptcha,
-        localstack_config::LocalStackConfig, secrets::setup_secrets,
-    };
+    use test_support::{clean_payload, fake_friendlycaptcha::FakeFriendlyCaptcha};
 
     const FAKE_FRIENDLYCAPTCHA_SITEKEY: &str = "arbitrary sitekey";
     const FAKE_FRIENDLYCAPTCHA_SECRET: &str = "arbitrary secret";
 
+    struct FakeSecretRepsitory;
+
+    #[async_trait]
+    impl SecretRepository for FakeSecretRepsitory {
+        async fn open() -> Self {
+            Self
+        }
+
+        async fn get_secret<T: DeserializeOwned>(
+            &self,
+            name: &'static str,
+        ) -> std::result::Result<T, lambda_http::Error> {
+            match name {
+                SMTP_CREDENTIALS_NAME => Ok(serde_json::from_str(
+                    r#"{
+                        "SMTP_USERNAME": "fake SMTP username",
+                        "SMTP_PASSWORD": "fake SMTP password"
+                    }"#,
+                )?),
+                FRIENDLYCAPTCHA_DATA_NAME => Ok(serde_json::from_str(
+                    format!(
+                        r#"{{
+                            "FRIENDLYCAPTCHA_SITEKEY": "{FAKE_FRIENDLYCAPTCHA_SITEKEY}",
+                            "FRIENDLYCAPTCHA_SECRET": "{FAKE_FRIENDLYCAPTCHA_SECRET}"
+                        }}"#
+                    )
+                    .as_str(),
+                )?),
+                _ => panic!("Unknown secret {name}"),
+            }
+        }
+    }
+
+    type ContactFormMessageHandlerForTesting = ContactFormMessageHandler<FakeSecretRepsitory>;
+
     #[tokio::test]
     #[serial]
     async fn returns_400_when_captcha_solution_does_not_validate() -> Result<()> {
-        let config = LocalStackConfig::new().await;
-        std::env::set_var(
-            "AWS_ENDPOINT_URL",
-            config.sdk_config.endpoint_url().unwrap(),
-        );
         let fake_friendlycaptcha =
             FakeFriendlyCaptcha::new(FAKE_FRIENDLYCAPTCHA_SITEKEY, FAKE_FRIENDLYCAPTCHA_SECRET)
                 .require_solution("correct captcha solution");
         tokio::spawn(fake_friendlycaptcha.serve());
-        setup_secrets(
-            &config,
-            FAKE_FRIENDLYCAPTCHA_SITEKEY,
-            FAKE_FRIENDLYCAPTCHA_SECRET,
-        )
-        .await;
         let mut event = Request::new(Body::Text(
             clean_payload(
                 r#"{
@@ -352,7 +407,9 @@ mod tests {
             .headers_mut()
             .append("Content-Type", HeaderValue::from_static("application/json"));
 
-        let response = function_handler(event).await.unwrap();
+        let response = ContactFormMessageHandlerForTesting::handle(event)
+            .await
+            .unwrap();
 
         verify_that!(response.status().as_u16(), eq(400))
     }
@@ -360,21 +417,10 @@ mod tests {
     #[tokio::test]
     #[serial]
     async fn returns_400_when_captcha_solution_is_missing() -> Result<()> {
-        let config = LocalStackConfig::new().await;
-        std::env::set_var(
-            "AWS_ENDPOINT_URL",
-            config.sdk_config.endpoint_url().unwrap(),
-        );
         let fake_friendlycaptcha =
             FakeFriendlyCaptcha::new(FAKE_FRIENDLYCAPTCHA_SITEKEY, FAKE_FRIENDLYCAPTCHA_SECRET)
                 .require_solution("correct captcha solution");
         tokio::spawn(fake_friendlycaptcha.serve());
-        setup_secrets(
-            &config,
-            FAKE_FRIENDLYCAPTCHA_SITEKEY,
-            FAKE_FRIENDLYCAPTCHA_SECRET,
-        )
-        .await;
         let mut event = Request::new(Body::Text(
             clean_payload(
                 r#"{
@@ -391,7 +437,9 @@ mod tests {
             .headers_mut()
             .append("Content-Type", HeaderValue::from_static("application/json"));
 
-        let response = function_handler(event).await.unwrap();
+        let response = ContactFormMessageHandlerForTesting::handle(event)
+            .await
+            .unwrap();
 
         verify_that!(response.status().as_u16(), eq(400))
     }
