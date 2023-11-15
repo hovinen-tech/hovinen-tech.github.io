@@ -11,8 +11,8 @@ use lettre::{
 };
 use reqwest::{Client, StatusCode};
 use secrets::{AwsSecretsManagerSecretRepository, SecretRepository};
-use serde::{de::DeserializeOwned, Deserialize, Serialize};
-use std::{borrow::Cow, fmt::Display, future::Future, marker::PhantomData, sync::Arc};
+use serde::{Deserialize, Serialize};
+use std::{borrow::Cow, fmt::Display, future::Future, sync::Arc};
 use tokio::sync::Mutex;
 use tracing::{error, warn};
 
@@ -39,18 +39,22 @@ async fn main() -> Result<(), Error> {
         .without_time()
         .init();
 
-    run(service_fn(
-        ContactFormMessageHandler::<AwsSecretsManagerSecretRepository>::handle,
-    ))
-    .await
+    let handler = ContactFormMessageHandler::<AwsSecretsManagerSecretRepository>::new().await;
+    run(service_fn(|event| handler.handle(event))).await
 }
 
-struct ContactFormMessageHandler<SecretRepositoryT: SecretRepository>(
-    PhantomData<SecretRepositoryT>,
-);
+struct ContactFormMessageHandler<SecretRepositoryT: SecretRepository> {
+    secrets_repository: SecretRepositoryT,
+}
 
 impl<SecretRepositoryT: SecretRepository> ContactFormMessageHandler<SecretRepositoryT> {
-    async fn handle(event: Request) -> Result<Response<Body>, Error> {
+    async fn new() -> Self {
+        Self {
+            secrets_repository: SecretRepositoryT::open().await,
+        }
+    }
+
+    async fn handle(&self, event: Request) -> Result<Response<Body>, Error> {
         let Some(message) = event.payload()? else {
             let error = ContactFormError::InternalError {
                 description: "Missing event payload".into(),
@@ -61,7 +65,7 @@ impl<SecretRepositoryT: SecretRepository> ContactFormMessageHandler<SecretReposi
             error.log();
             return Ok(error.into_response());
         };
-        match Self::send_message(message).await {
+        match self.send_message(message).await {
             Ok(language) => Ok(Response::builder()
                 .status(303)
                 .header("Location", Self::create_success_url(language.as_str()))
@@ -74,7 +78,7 @@ impl<SecretRepositoryT: SecretRepository> ContactFormMessageHandler<SecretReposi
         }
     }
 
-    async fn send_message(message: ContactFormMessage) -> Result<String, ContactFormError> {
+    async fn send_message(&self, message: ContactFormMessage) -> Result<String, ContactFormError> {
         let ContactFormMessage {
             name,
             email: Some(email),
@@ -88,7 +92,7 @@ impl<SecretRepositoryT: SecretRepository> ContactFormMessageHandler<SecretReposi
                 "Missing fields in request".into(),
             ));
         };
-        Self::verify_friendlycaptcha_token(friendlycaptcha_token)
+        self.verify_friendlycaptcha_token(friendlycaptcha_token)
             .await
             .map_err(|e| {
                 e.into_contact_form_error(subject.clone(), body.clone(), language.clone())
@@ -116,9 +120,14 @@ impl<SecretRepositoryT: SecretRepository> ContactFormMessageHandler<SecretReposi
                 body: body.clone(),
                 language: language.clone(),
             })?;
-        let mailer = get_memoized(&MAILER, Self::initialise_mailer)
+        let mailer = get_memoized(&MAILER, || self.initialise_mailer())
             .await
-            .unwrap();
+            .map_err(|e| ContactFormError::InternalError {
+                description: format!("Unable to connect to SMTP server: {e}"),
+                subject: subject.clone(),
+                body: body.clone(),
+                language: language.clone(),
+            })?;
         match mailer.send(email).await {
             Ok(_) => Ok(language),
             Err(error) => Err(ContactFormError::InternalError {
@@ -130,12 +139,17 @@ impl<SecretRepositoryT: SecretRepository> ContactFormMessageHandler<SecretReposi
         }
     }
 
-    async fn verify_friendlycaptcha_token(solution: String) -> Result<(), FriendlyCaptchaError> {
+    async fn verify_friendlycaptcha_token(
+        &self,
+        solution: String,
+    ) -> Result<(), FriendlyCaptchaError> {
         let data = get_memoized(&FRIENDLYCAPTCHA_DATA, || {
-            Self::fetch_secret(FRIENDLYCAPTCHA_DATA_NAME)
+            self.secrets_repository
+                .get_secret(FRIENDLYCAPTCHA_DATA_NAME)
         })
         .await
-        .unwrap();
+        .map_err(|e| FriendlyCaptchaError::CouldNotRetrieveSecretsError(format!("{e}")))?;
+
         let payload = FriendlyCaptchaVerifyPayload {
             solution,
             sitekey: data.sitekey,
@@ -193,7 +207,7 @@ impl<SecretRepositoryT: SecretRepository> ContactFormMessageHandler<SecretReposi
             .unwrap_or(FRIENDLYCAPTCHA_VERIFY_URL.into())
     }
 
-    async fn initialise_mailer() -> Result<Arc<AsyncSmtpTransport<Tokio1Executor>>, Error> {
+    async fn initialise_mailer(&self) -> Result<Arc<AsyncSmtpTransport<Tokio1Executor>>, Error> {
         let smtp_url = Self::smtp_url();
         let mut builder = AsyncSmtpTransport::<Tokio1Executor>::from_url(&smtp_url)?
             .authentication(vec![Mechanism::Plain]);
@@ -203,8 +217,10 @@ impl<SecretRepositoryT: SecretRepository> ContactFormMessageHandler<SecretReposi
         // the credentials are not sent, the connection will be rejected. This is better than a
         // security breach.
         if smtp_url.starts_with("smtps://") {
-            let parsed_credentials: SmtpCredentials =
-                Self::fetch_secret(SMTP_CREDENTIALS_NAME).await?;
+            let parsed_credentials: SmtpCredentials = self
+                .secrets_repository
+                .get_secret(SMTP_CREDENTIALS_NAME)
+                .await?;
             builder = builder.credentials(Credentials::new(
                 parsed_credentials.username,
                 parsed_credentials.password,
@@ -218,13 +234,6 @@ impl<SecretRepositoryT: SecretRepository> ContactFormMessageHandler<SecretReposi
         std::env::var("SMTP_URL")
             .map(Cow::Owned)
             .unwrap_or(SMTP_URL.into())
-    }
-
-    async fn fetch_secret<T: DeserializeOwned>(
-        name: &'static str,
-    ) -> Result<T, lambda_http::Error> {
-        let repository = SecretRepositoryT::open().await;
-        repository.get_secret(name).await
     }
 
     fn create_success_url(language: &str) -> String {
@@ -354,6 +363,7 @@ enum FriendlyCaptchaError {
     SolutionInvalid,
     SolutionTimeoutOrDuplicate,
     UnrecognizedError(Vec<String>),
+    CouldNotRetrieveSecretsError(String),
 }
 
 impl FriendlyCaptchaError {
@@ -388,6 +398,14 @@ impl FriendlyCaptchaError {
                 body,
                 language,
             },
+            FriendlyCaptchaError::CouldNotRetrieveSecretsError(description) => {
+                ContactFormError::InternalError {
+                    description: format!("Unable to retrieve secrets: {description}"),
+                    subject,
+                    body,
+                    language,
+                }
+            }
         }
     }
 }
@@ -403,6 +421,9 @@ impl std::fmt::Display for FriendlyCaptchaError {
             }
             FriendlyCaptchaError::UnrecognizedError(errors) => {
                 write!(f, "Unrecognised error: {errors:?}")
+            }
+            FriendlyCaptchaError::CouldNotRetrieveSecretsError(description) => {
+                write!(f, "Unable to retrieve secrets: {description}")
             }
         }
     }
@@ -432,7 +453,7 @@ mod tests {
         secrets::test_support::{
             FakeSecretRepsitory, FAKE_FRIENDLYCAPTCHA_SECRET, FAKE_FRIENDLYCAPTCHA_SITEKEY,
         },
-        MAILER,
+        FRIENDLYCAPTCHA_DATA, FRIENDLYCAPTCHA_DATA_NAME, MAILER, SMTP_CREDENTIALS_NAME,
     };
     use googletest::prelude::*;
     use lambda_http::{http::HeaderValue, Body, Request};
@@ -442,7 +463,7 @@ mod tests {
     use std::time::Duration;
     use test_support::{
         fake_friendlycaptcha::FakeFriendlyCaptcha,
-        fake_smtp::{start_poisoned_smtp_server, FakeSmtpServer, POISONED_SMTP_PORT},
+        fake_smtp::{start_poisoned_smtp_server, FakeSmtpServer, POISONED_SMTP_PORT, SMTP_PORT},
     };
     use tokio::time::timeout;
 
@@ -465,10 +486,9 @@ mod tests {
         let event = EventPayload::arbitrary()
             .with_captcha_solution("incorrect captcha solution")
             .into_event();
+        let subject = ContactFormMessageHandlerForTesting::new().await;
 
-        let response = ContactFormMessageHandlerForTesting::handle(event)
-            .await
-            .unwrap();
+        let response = subject.handle(event).await.unwrap();
 
         verify_that!(response.status().as_u16(), eq(400))
     }
@@ -484,10 +504,9 @@ mod tests {
         let event = EventPayload::arbitrary()
             .with_no_captcha_solution()
             .into_event();
+        let subject = ContactFormMessageHandlerForTesting::new().await;
 
-        let response = ContactFormMessageHandlerForTesting::handle(event)
-            .await
-            .unwrap();
+        let response = subject.handle(event).await.unwrap();
 
         verify_that!(response.status().as_u16(), eq(400))
     }
@@ -498,10 +517,9 @@ mod tests {
     async fn sends_mail_when_friendlycaptcha_fails() {
         init().await;
         let event = EventPayload::arbitrary().into_event();
+        let subject = ContactFormMessageHandlerForTesting::new().await;
 
-        let response = ContactFormMessageHandlerForTesting::handle(event)
-            .await
-            .unwrap();
+        let response = subject.handle(event).await.unwrap();
 
         expect_that!(response.status().as_u16(), eq(303));
         expect_that!(
@@ -524,10 +542,9 @@ mod tests {
                 .return_invalid_response();
         tokio::spawn(fake_friendlycaptcha.serve());
         let event = EventPayload::arbitrary().into_event();
+        let subject = ContactFormMessageHandlerForTesting::new().await;
 
-        let response = ContactFormMessageHandlerForTesting::handle(event)
-            .await
-            .unwrap();
+        let response = subject.handle(event).await.unwrap();
 
         expect_that!(response.status().as_u16(), eq(303));
         expect_that!(
@@ -550,10 +567,9 @@ mod tests {
                 .return_solution_timeout();
         tokio::spawn(fake_friendlycaptcha.serve());
         let event = EventPayload::arbitrary().into_event();
+        let subject = ContactFormMessageHandlerForTesting::new().await;
 
-        ContactFormMessageHandlerForTesting::handle(event)
-            .await
-            .unwrap();
+        subject.handle(event).await.unwrap();
 
         expect_that!(
             timeout(Duration::from_secs(1), FAKE_SMTP.last_mail_content()).await,
@@ -570,10 +586,9 @@ mod tests {
             FakeFriendlyCaptcha::new("A different sitekey", FAKE_FRIENDLYCAPTCHA_SECRET);
         tokio::spawn(fake_friendlycaptcha.serve());
         let event = EventPayload::arbitrary().into_event();
+        let subject = ContactFormMessageHandlerForTesting::new().await;
 
-        let response = ContactFormMessageHandlerForTesting::handle(event)
-            .await
-            .unwrap();
+        let response = subject.handle(event).await.unwrap();
 
         expect_that!(response.status().as_u16(), eq(500));
         expect_that!(
@@ -593,10 +608,9 @@ mod tests {
             FakeFriendlyCaptcha::new(FAKE_FRIENDLYCAPTCHA_SITEKEY, "A different secret");
         tokio::spawn(fake_friendlycaptcha.serve());
         let event = EventPayload::arbitrary().into_event();
+        let subject = ContactFormMessageHandlerForTesting::new().await;
 
-        let response = ContactFormMessageHandlerForTesting::handle(event)
-            .await
-            .unwrap();
+        let response = subject.handle(event).await.unwrap();
 
         expect_that!(response.status().as_u16(), eq(500));
         expect_that!(
@@ -617,10 +631,9 @@ mod tests {
             FakeFriendlyCaptcha::new(FAKE_FRIENDLYCAPTCHA_SITEKEY, FAKE_FRIENDLYCAPTCHA_SECRET);
         tokio::spawn(fake_friendlycaptcha.serve());
         let event = EventPayload::arbitrary().into_event();
+        let subject = ContactFormMessageHandlerForTesting::new().await;
 
-        let response = ContactFormMessageHandlerForTesting::handle(event)
-            .await
-            .unwrap();
+        let response = subject.handle(event).await.unwrap();
 
         expect_that!(response.status().as_u16(), eq(500));
         expect_that!(
@@ -642,10 +655,9 @@ mod tests {
             FakeFriendlyCaptcha::new(FAKE_FRIENDLYCAPTCHA_SITEKEY, FAKE_FRIENDLYCAPTCHA_SECRET);
         tokio::spawn(fake_friendlycaptcha.serve());
         let event = EventPayload::arbitrary().into_event();
+        let subject = ContactFormMessageHandlerForTesting::new().await;
 
-        let response = ContactFormMessageHandlerForTesting::handle(event)
-            .await
-            .unwrap();
+        let response = subject.handle(event).await.unwrap();
 
         expect_that!(response.status().as_u16(), eq(500));
         expect_that!(
@@ -656,15 +668,64 @@ mod tests {
         );
     }
 
+    #[googletest::test]
     #[tokio::test]
     #[serial]
-    async fn returns_contact_page_when_secrets_service_fails() {}
+    async fn send_mail_when_secrets_service_fails_for_friendlycaptcha() {
+        init().await;
+        let fake_friendlycaptcha =
+            FakeFriendlyCaptcha::new(FAKE_FRIENDLYCAPTCHA_SITEKEY, FAKE_FRIENDLYCAPTCHA_SECRET);
+        tokio::spawn(fake_friendlycaptcha.serve());
+        let event = EventPayload::arbitrary().into_event();
+        let mut subject = ContactFormMessageHandlerForTesting::new().await;
+        subject
+            .secrets_repository
+            .remove_secret(FRIENDLYCAPTCHA_DATA_NAME);
+
+        let response = subject.handle(event).await.unwrap();
+
+        expect_that!(response.status().as_u16(), eq(500));
+        expect_that!(
+            response.body(),
+            points_to(matches_pattern!(Body::Text(contains_substring(
+                "Something went wrong"
+            ))))
+        );
+    }
+
+    #[googletest::test]
+    #[tokio::test]
+    #[serial]
+    async fn returns_contact_page_when_secrets_service_fails_for_smtp() {
+        init().await;
+        // Credentials are only retrieved if using smtps
+        let _env = TemporaryEnv::new("SMTP_URL", format!("smtps://localhost:{SMTP_PORT}"));
+        let fake_friendlycaptcha =
+            FakeFriendlyCaptcha::new(FAKE_FRIENDLYCAPTCHA_SITEKEY, FAKE_FRIENDLYCAPTCHA_SECRET);
+        tokio::spawn(fake_friendlycaptcha.serve());
+        let event = EventPayload::arbitrary().into_event();
+        let mut subject = ContactFormMessageHandlerForTesting::new().await;
+        subject
+            .secrets_repository
+            .remove_secret(SMTP_CREDENTIALS_NAME);
+
+        let response = subject.handle(event).await.unwrap();
+
+        expect_that!(response.status().as_u16(), eq(500));
+        expect_that!(
+            response.body(),
+            points_to(matches_pattern!(Body::Text(contains_substring(
+                "Something went wrong"
+            ))))
+        );
+    }
 
     async fn init() {
         setup_environment();
         FAKE_SMTP.start();
         FAKE_SMTP.flush().await;
         *MAILER.lock().await = None;
+        *FRIENDLYCAPTCHA_DATA.lock().await = None;
     }
 
     fn setup_environment() {
