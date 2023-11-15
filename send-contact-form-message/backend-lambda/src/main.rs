@@ -719,6 +719,33 @@ mod tests {
         );
     }
 
+    #[googletest::test]
+    #[tokio::test]
+    #[serial]
+    async fn renders_message_content_and_subject_in_error_page() {
+        init().await;
+        start_poisoned_smtp_server();
+        let _env = TemporaryEnv::new("SMTP_URL", format!("smtp://localhost:{POISONED_SMTP_PORT}"));
+        let fake_friendlycaptcha =
+            FakeFriendlyCaptcha::new(FAKE_FRIENDLYCAPTCHA_SITEKEY, FAKE_FRIENDLYCAPTCHA_SECRET);
+        tokio::spawn(fake_friendlycaptcha.serve());
+        let event = EventPayload::arbitrary()
+            .with_subject("Message subject")
+            .with_body("Message body")
+            .into_event();
+        let subject = ContactFormMessageHandlerForTesting::new().await;
+
+        let response = subject.handle(event).await.unwrap();
+
+        expect_that!(response.status().as_u16(), eq(500));
+        expect_that!(
+            response.body(),
+            points_to(matches_pattern!(Body::Text(
+                contains_substring("Message subject").and(contains_substring("Message body"))
+            )))
+        );
+    }
+
     async fn init() {
         setup_environment();
         FAKE_SMTP.start();
@@ -752,6 +779,20 @@ mod tests {
                 body: "Test message".into(),
                 language: "en".into(),
                 solution: Some(CORRECT_CAPTCHA_SOLUTION.into()),
+            }
+        }
+
+        fn with_subject(self, subject: impl AsRef<str>) -> Self {
+            Self {
+                subject: subject.as_ref().into(),
+                ..self
+            }
+        }
+
+        fn with_body(self, body: impl AsRef<str>) -> Self {
+            Self {
+                body: body.as_ref().into(),
+                ..self
             }
         }
 

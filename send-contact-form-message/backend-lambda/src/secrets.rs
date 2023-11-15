@@ -75,9 +75,9 @@ pub mod test_support {
                     FRIENDLYCAPTCHA_DATA_NAME,
                     format!(
                         r#"{{
-                        "FRIENDLYCAPTCHA_SITEKEY": "{FAKE_FRIENDLYCAPTCHA_SITEKEY}",
-                        "FRIENDLYCAPTCHA_SECRET": "{FAKE_FRIENDLYCAPTCHA_SECRET}"
-                    }}"#
+                            "FRIENDLYCAPTCHA_SITEKEY": "{FAKE_FRIENDLYCAPTCHA_SITEKEY}",
+                            "FRIENDLYCAPTCHA_SECRET": "{FAKE_FRIENDLYCAPTCHA_SECRET}"
+                        }}"#
                     ),
                 ),
             ]))
