@@ -10,7 +10,7 @@ use std::borrow::Cow;
 
 // Address of services which this test runs itself, as seen by the containers inside Docker. This
 // is a fixed IP address for Docker in Linux.
-pub const HOST_IP: &str = "172.17.0.1";
+pub const HOST_IP: &str = "host.docker.internal";
 
 pub fn clean_payload(raw: &str) -> Cow<str> {
     let line_break = Regex::new("\n +").unwrap();
