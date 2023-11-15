@@ -428,8 +428,11 @@ impl std::error::Error for EnvironmentError {}
 #[cfg(test)]
 mod tests {
     use super::ContactFormMessageHandler;
-    use crate::secrets::test_support::{
-        FakeSecretRepsitory, FAKE_FRIENDLYCAPTCHA_SECRET, FAKE_FRIENDLYCAPTCHA_SITEKEY,
+    use crate::{
+        secrets::test_support::{
+            FakeSecretRepsitory, FAKE_FRIENDLYCAPTCHA_SECRET, FAKE_FRIENDLYCAPTCHA_SITEKEY,
+        },
+        MAILER,
     };
     use googletest::prelude::*;
     use lambda_http::{http::HeaderValue, Body, Request};
@@ -584,7 +587,6 @@ mod tests {
     #[tokio::test]
     #[serial]
     async fn returns_contact_page_when_friendly_captcha_reports_bad_secret() {
-        setup_logging();
         init().await;
         let fake_friendlycaptcha =
             FakeFriendlyCaptcha::new(FAKE_FRIENDLYCAPTCHA_SITEKEY, "A different secret");
@@ -604,9 +606,30 @@ mod tests {
         );
     }
 
+    #[googletest::test]
     #[tokio::test]
     #[serial]
-    async fn returns_contact_page_when_connection_to_mail_server_fails() {}
+    async fn returns_contact_page_when_connection_to_mail_server_fails() {
+        setup_logging();
+        init().await;
+        let _env = TemporaryEnv::new("SMTP_URL", "smtp://nonexistent.host.internal");
+        let fake_friendlycaptcha =
+            FakeFriendlyCaptcha::new(FAKE_FRIENDLYCAPTCHA_SITEKEY, FAKE_FRIENDLYCAPTCHA_SECRET);
+        tokio::spawn(fake_friendlycaptcha.serve());
+        let event = EventPayload::arbitrary().into_event();
+
+        let response = ContactFormMessageHandlerForTesting::handle(event)
+            .await
+            .unwrap();
+
+        expect_that!(response.status().as_u16(), eq(500));
+        expect_that!(
+            response.body(),
+            points_to(matches_pattern!(Body::Text(contains_substring(
+                "Something went wrong"
+            ))))
+        );
+    }
 
     #[tokio::test]
     #[serial]
@@ -620,6 +643,7 @@ mod tests {
         setup_environment();
         FAKE_SMTP.start();
         FAKE_SMTP.flush().await;
+        *MAILER.lock().await = None;
     }
 
     fn setup_environment() {
@@ -674,6 +698,26 @@ mod tests {
 
         fn into_json(self) -> String {
             serde_json::to_string(&self).unwrap()
+        }
+    }
+
+    struct TemporaryEnv(&'static str, Option<String>);
+
+    impl TemporaryEnv {
+        fn new(key: &'static str, value: &'static str) -> Self {
+            let old_value = std::env::var(key).ok();
+            std::env::set_var(key, value);
+            Self(key, old_value)
+        }
+    }
+
+    impl Drop for TemporaryEnv {
+        fn drop(&mut self) {
+            if let Some(value) = self.1.as_ref() {
+                std::env::set_var(self.0, value);
+            } else {
+                std::env::remove_var(self.0);
+            }
         }
     }
 }
