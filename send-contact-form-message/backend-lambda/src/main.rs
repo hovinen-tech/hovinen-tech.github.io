@@ -441,7 +441,8 @@ mod tests {
     use serial_test::serial;
     use std::time::Duration;
     use test_support::{
-        fake_friendlycaptcha::FakeFriendlyCaptcha, fake_smtp::FakeSmtpServer, setup_logging,
+        fake_friendlycaptcha::FakeFriendlyCaptcha,
+        fake_smtp::{start_poisoned_smtp_server, FakeSmtpServer, POISONED_SMTP_PORT},
     };
     use tokio::time::timeout;
 
@@ -610,7 +611,6 @@ mod tests {
     #[tokio::test]
     #[serial]
     async fn returns_contact_page_when_connection_to_mail_server_fails() {
-        setup_logging();
         init().await;
         let _env = TemporaryEnv::new("SMTP_URL", "smtp://nonexistent.host.internal");
         let fake_friendlycaptcha =
@@ -631,9 +631,30 @@ mod tests {
         );
     }
 
+    #[googletest::test]
     #[tokio::test]
     #[serial]
-    async fn returns_contact_page_when_smtp_fails() {}
+    async fn returns_contact_page_when_smtp_fails() {
+        init().await;
+        start_poisoned_smtp_server();
+        let _env = TemporaryEnv::new("SMTP_URL", format!("smtp://localhost:{POISONED_SMTP_PORT}"));
+        let fake_friendlycaptcha =
+            FakeFriendlyCaptcha::new(FAKE_FRIENDLYCAPTCHA_SITEKEY, FAKE_FRIENDLYCAPTCHA_SECRET);
+        tokio::spawn(fake_friendlycaptcha.serve());
+        let event = EventPayload::arbitrary().into_event();
+
+        let response = ContactFormMessageHandlerForTesting::handle(event)
+            .await
+            .unwrap();
+
+        expect_that!(response.status().as_u16(), eq(500));
+        expect_that!(
+            response.body(),
+            points_to(matches_pattern!(Body::Text(contains_substring(
+                "Something went wrong"
+            ))))
+        );
+    }
 
     #[tokio::test]
     #[serial]
@@ -704,9 +725,9 @@ mod tests {
     struct TemporaryEnv(&'static str, Option<String>);
 
     impl TemporaryEnv {
-        fn new(key: &'static str, value: &'static str) -> Self {
+        fn new(key: &'static str, value: impl AsRef<str>) -> Self {
             let old_value = std::env::var(key).ok();
-            std::env::set_var(key, value);
+            std::env::set_var(key, value.as_ref());
             Self(key, old_value)
         }
     }

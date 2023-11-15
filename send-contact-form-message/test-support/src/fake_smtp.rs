@@ -1,12 +1,13 @@
 use log::debug;
 use mailin_embedded::{Handler, Server, SslConfig};
-use std::{sync::Arc, time::Duration};
+use std::{net::IpAddr, sync::Arc, time::Duration};
 use tokio::{
     sync::watch::{self, error::RecvError, Receiver, Sender},
     time::timeout,
 };
 
-pub const SMTP_PORT: &str = "4567";
+pub const SMTP_PORT: u16 = 4567;
+pub const POISONED_SMTP_PORT: u16 = 4568;
 
 #[derive(Clone)]
 struct SmtpHandler(Vec<u8>, Arc<Sender<String>>);
@@ -89,4 +90,31 @@ impl Default for FakeSmtpServer {
     fn default() -> Self {
         Self::new()
     }
+}
+
+#[derive(Clone)]
+struct PoisonedSmtpHandler;
+
+impl Handler for PoisonedSmtpHandler {
+    fn helo(&mut self, _ip: IpAddr, _domain: &str) -> mailin_embedded::Response {
+        mailin_embedded::response::INTERNAL_ERROR
+    }
+
+    fn mail(&mut self, _ip: IpAddr, _domain: &str, _from: &str) -> mailin_embedded::Response {
+        mailin_embedded::response::INTERNAL_ERROR
+    }
+}
+
+pub fn start_poisoned_smtp_server() {
+    let handler = PoisonedSmtpHandler;
+    let mut server = Server::new(handler);
+    server
+        .with_name("hovinen.tech")
+        .with_ssl(SslConfig::None)
+        .unwrap()
+        .with_addr(format!("0.0.0.0:{POISONED_SMTP_PORT}"))
+        .unwrap();
+    std::thread::spawn(move || {
+        let _ = server.serve();
+    });
 }
