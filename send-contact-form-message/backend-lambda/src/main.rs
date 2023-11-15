@@ -314,34 +314,32 @@ mod tests {
     };
     use googletest::prelude::*;
     use lambda_http::{http::HeaderValue, Body, Request};
+    use lazy_static::lazy_static;
+    use serde::Serialize;
     use serial_test::serial;
-    use test_support::{clean_payload, fake_friendlycaptcha::FakeFriendlyCaptcha};
+    use std::time::Duration;
+    use test_support::{fake_friendlycaptcha::FakeFriendlyCaptcha, fake_smtp::FakeSmtpServer};
+    use tokio::time::timeout;
 
     type ContactFormMessageHandlerForTesting = ContactFormMessageHandler<FakeSecretRepsitory>;
+
+    const CORRECT_CAPTCHA_SOLUTION: &str = "correct captcha solution";
+
+    lazy_static! {
+        static ref FAKE_SMTP: FakeSmtpServer = FakeSmtpServer::new();
+    }
 
     #[tokio::test]
     #[serial]
     async fn returns_400_when_captcha_solution_does_not_validate() -> Result<()> {
+        init();
         let fake_friendlycaptcha =
             FakeFriendlyCaptcha::new(FAKE_FRIENDLYCAPTCHA_SITEKEY, FAKE_FRIENDLYCAPTCHA_SECRET)
-                .require_solution("correct captcha solution");
+                .require_solution(CORRECT_CAPTCHA_SOLUTION);
         tokio::spawn(fake_friendlycaptcha.serve());
-        let mut event = Request::new(Body::Text(
-            clean_payload(
-                r#"{
-                    "name":"Arbitrary sender",
-                    "email":"email@example.com",
-                    "subject":"Test",
-                    "body":"Test message",
-                    "language":"en",
-                    "frc-captcha-solution":"incorrect captcha solution"
-                }"#,
-            )
-            .into(),
-        ));
-        event
-            .headers_mut()
-            .append("Content-Type", HeaderValue::from_static("application/json"));
+        let event = EventPayload::arbitrary()
+            .with_captcha_solution("incorrect captcha solution")
+            .into_event();
 
         let response = ContactFormMessageHandlerForTesting::handle(event)
             .await
@@ -353,30 +351,127 @@ mod tests {
     #[tokio::test]
     #[serial]
     async fn returns_400_when_captcha_solution_is_missing() -> Result<()> {
+        init();
         let fake_friendlycaptcha =
             FakeFriendlyCaptcha::new(FAKE_FRIENDLYCAPTCHA_SITEKEY, FAKE_FRIENDLYCAPTCHA_SECRET)
-                .require_solution("correct captcha solution");
+                .require_solution(CORRECT_CAPTCHA_SOLUTION);
         tokio::spawn(fake_friendlycaptcha.serve());
-        let mut event = Request::new(Body::Text(
-            clean_payload(
-                r#"{
-                    "name":"Arbitrary sender",
-                    "email":"email@example.com",
-                    "subject":"Test",
-                    "body":"Test message",
-                    "language":"en"
-                }"#,
-            )
-            .into(),
-        ));
-        event
-            .headers_mut()
-            .append("Content-Type", HeaderValue::from_static("application/json"));
+        let event = EventPayload::arbitrary()
+            .with_no_captcha_solution()
+            .into_event();
 
         let response = ContactFormMessageHandlerForTesting::handle(event)
             .await
             .unwrap();
 
         verify_that!(response.status().as_u16(), eq(400))
+    }
+
+    #[googletest::test]
+    #[tokio::test]
+    #[serial]
+    async fn sends_mail_when_friendlycaptcha_fails() {
+        init();
+        let event = EventPayload::arbitrary().into_event();
+
+        let response = ContactFormMessageHandlerForTesting::handle(event)
+            .await
+            .unwrap();
+
+        expect_that!(response.status().as_u16(), eq(303));
+        expect_that!(
+            response.body(),
+            points_to(matches_pattern!(Body::Text(eq(""))))
+        );
+        expect_that!(
+            timeout(Duration::from_secs(10), FAKE_SMTP.last_mail_content()).await,
+            ok(ok(anything()))
+        )
+    }
+
+    #[googletest::test]
+    #[tokio::test]
+    #[serial]
+    async fn sends_mail_when_friendlycaptcha_sends_invalid_response() {
+        init();
+        let fake_friendlycaptcha =
+            FakeFriendlyCaptcha::new(FAKE_FRIENDLYCAPTCHA_SITEKEY, FAKE_FRIENDLYCAPTCHA_SECRET)
+                .return_invalid_response();
+        tokio::spawn(fake_friendlycaptcha.serve());
+        let event = EventPayload::arbitrary().into_event();
+
+        let response = ContactFormMessageHandlerForTesting::handle(event)
+            .await
+            .unwrap();
+
+        expect_that!(response.status().as_u16(), eq(303));
+        expect_that!(
+            response.body(),
+            points_to(matches_pattern!(Body::Text(eq(""))))
+        );
+        expect_that!(
+            timeout(Duration::from_secs(10), FAKE_SMTP.last_mail_content()).await,
+            ok(ok(anything()))
+        );
+    }
+
+    fn init() {
+        setup_environment();
+        FAKE_SMTP.start();
+    }
+
+    fn setup_environment() {
+        FakeSmtpServer::setup_environment();
+        FakeFriendlyCaptcha::setup_environment();
+    }
+
+    #[derive(Serialize)]
+    struct EventPayload {
+        name: String,
+        email: String,
+        subject: String,
+        body: String,
+        language: String,
+        #[serde(rename = "frc-captcha-solution")]
+        solution: Option<String>,
+    }
+
+    impl EventPayload {
+        fn arbitrary() -> Self {
+            Self {
+                name: "Arbitrary sender".into(),
+                email: "email@example.com".into(),
+                subject: "Test".into(),
+                body: "Test message".into(),
+                language: "en".into(),
+                solution: Some(CORRECT_CAPTCHA_SOLUTION.into()),
+            }
+        }
+
+        fn with_no_captcha_solution(self) -> Self {
+            Self {
+                solution: None,
+                ..self
+            }
+        }
+
+        fn with_captcha_solution(self, solution: impl AsRef<str>) -> Self {
+            Self {
+                solution: Some(solution.as_ref().into()),
+                ..self
+            }
+        }
+
+        fn into_event(self) -> Request {
+            let mut event = Request::new(Body::Text(self.into_json()));
+            event
+                .headers_mut()
+                .append("Content-Type", HeaderValue::from_static("application/json"));
+            event
+        }
+
+        fn into_json(self) -> String {
+            serde_json::to_string(&self).unwrap()
+        }
     }
 }

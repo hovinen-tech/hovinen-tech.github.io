@@ -8,7 +8,7 @@ use std::{collections::HashMap, time::Duration};
 use test_support::{
     clean_payload,
     fake_friendlycaptcha::FakeFriendlyCaptcha,
-    fake_smtp::{setup_smtp, SMTP_PORT},
+    fake_smtp::{FakeSmtpServer, SMTP_PORT},
     localstack_config::{LocalStackConfig, LOCALSTACK_PORT},
     secrets::setup_secrets,
     setup_logging, HOST_IP,
@@ -40,7 +40,8 @@ async fn sends_email_to_recipient() -> Result<()> {
         FAKE_FRIENDLYCAPTCHA_SECRET,
     )
     .await;
-    let mail_content = setup_smtp();
+    let fake_smtp_server = FakeSmtpServer::new();
+    fake_smtp_server.start();
     let (lambda_client, function_name) = setup_lambda(&config).await;
     let payload = clean_payload(
         r#"{
@@ -78,7 +79,11 @@ async fn sends_email_to_recipient() -> Result<()> {
         }))
     )?;
     verify_that!(
-        timeout(Duration::from_secs(10), mail_content).await,
+        timeout(
+            Duration::from_secs(10),
+            fake_smtp_server.last_mail_content()
+        )
+        .await,
         ok(ok(all!(
             contains_substring("To: \"Bradford Hovinen\" <hovinen@hovinen.tech>"),
             contains_substring("From: \"Web contact form\" <noreply@hovinen.tech>"),

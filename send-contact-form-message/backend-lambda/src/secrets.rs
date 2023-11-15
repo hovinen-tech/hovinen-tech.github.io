@@ -1,7 +1,6 @@
+use crate::EnvironmentError;
 use async_trait::async_trait;
 use serde::de::DeserializeOwned;
-
-use crate::EnvironmentError;
 
 #[async_trait]
 pub trait SecretRepository {

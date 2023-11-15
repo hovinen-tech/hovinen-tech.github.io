@@ -19,7 +19,7 @@ pub fn clean_payload(raw: &str) -> Cow<str> {
 
 pub fn setup_logging() {
     CombinedLogger::init(vec![TermLogger::new(
-        LevelFilter::Info,
+        LevelFilter::Debug,
         Config::default(),
         TerminalMode::Mixed,
         ColorChoice::Auto,

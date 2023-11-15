@@ -1,20 +1,26 @@
 use crate::HOST_IP;
 use axum::{
+    body::{Bytes, Full},
     extract::{Json, State},
     http::StatusCode,
+    response::Response,
     routing::post,
     Router, Server,
 };
+use hyper::header;
 use serde::{Deserialize, Serialize};
-use std::{borrow::Cow, sync::Arc};
+use serde_json::json;
+use std::borrow::Cow;
 
 const FRIENDLYCAPTCHA_PORT: u16 = 5283;
 const VERIFY_PATH: &str = "/verify";
 
+#[derive(Clone)]
 pub struct FakeFriendlyCaptcha {
     required_sitekey: Cow<'static, str>,
     required_secret: Cow<'static, str>,
     required_solution: Option<String>,
+    return_invalid_response: bool,
 }
 
 #[derive(Deserialize)]
@@ -36,15 +42,23 @@ impl FakeFriendlyCaptcha {
     pub fn new(
         required_sitekey: impl Into<Cow<'static, str>>,
         required_secret: impl Into<Cow<'static, str>>,
-    ) -> Arc<Self> {
-        Arc::new(Self {
+    ) -> Self {
+        Self {
             required_sitekey: required_sitekey.into(),
             required_secret: required_secret.into(),
             required_solution: None,
-        })
+            return_invalid_response: false,
+        }
     }
 
-    pub async fn serve(self: Arc<Self>) {
+    pub fn setup_environment() {
+        std::env::set_var(
+            "FRIENDLYCAPTCHA_VERIFY_URL",
+            format!("http://localhost:{FRIENDLYCAPTCHA_PORT}{VERIFY_PATH}"),
+        );
+    }
+
+    pub async fn serve(self) {
         let app = Router::new()
             .route(VERIFY_PATH, post(verify))
             .with_state(self);
@@ -54,12 +68,18 @@ impl FakeFriendlyCaptcha {
             .unwrap();
     }
 
-    pub fn require_solution(self: Arc<Self>, required_solution: impl AsRef<str>) -> Arc<Self> {
-        Arc::new(Self {
-            required_sitekey: self.required_sitekey.clone(),
-            required_secret: self.required_secret.clone(),
+    pub fn require_solution(self: Self, required_solution: impl AsRef<str>) -> Self {
+        Self {
             required_solution: Some(required_solution.as_ref().into()),
-        })
+            ..self
+        }
+    }
+
+    pub fn return_invalid_response(self) -> Self {
+        Self {
+            return_invalid_response: true,
+            ..self
+        }
     }
 
     pub fn verify_url() -> String {
@@ -68,41 +88,63 @@ impl FakeFriendlyCaptcha {
 }
 
 async fn verify(
-    State(state): State<Arc<FakeFriendlyCaptcha>>,
+    State(state): State<FakeFriendlyCaptcha>,
     Json(payload): Json<VerifyRequestPayload>,
-) -> (StatusCode, Json<VerifyResponsePayload>) {
-    if payload.sitekey != state.required_sitekey {
-        (
-            StatusCode::BAD_REQUEST,
-            Json(VerifyResponsePayload {
-                success: false,
-                errors: vec!["bad-sitekey".into()],
-            }),
-        )
+) -> Response<Full<Bytes>> {
+    if state.return_invalid_response {
+        Response::builder()
+            .status(StatusCode::OK)
+            .header(header::CONTENT_TYPE, "text/plain")
+            .body(Full::from("Invalid response"))
+            .unwrap()
+    } else if payload.sitekey != state.required_sitekey {
+        Response::builder()
+            .status(StatusCode::BAD_REQUEST)
+            .header(header::CONTENT_TYPE, "application/json")
+            .body(Full::from(
+                json!(VerifyResponsePayload {
+                    success: false,
+                    errors: vec!["sitekey_invalid".into()],
+                })
+                .to_string(),
+            ))
+            .unwrap()
     } else if payload.secret != state.required_secret {
-        (
-            StatusCode::BAD_REQUEST,
-            Json(VerifyResponsePayload {
-                success: false,
-                errors: vec!["bad-secet".into()],
-            }),
-        )
+        Response::builder()
+            .status(StatusCode::BAD_REQUEST)
+            .header(header::CONTENT_TYPE, "application/json")
+            .body(Full::from(
+                json!(VerifyResponsePayload {
+                    success: false,
+                    errors: vec!["secret_invalid".into()],
+                })
+                .to_string(),
+            ))
+            .unwrap()
     } else if state.required_solution.is_none() || Some(payload.solution) == state.required_solution
     {
-        (
-            StatusCode::OK,
-            Json(VerifyResponsePayload {
-                success: true,
-                errors: vec![],
-            }),
-        )
+        Response::builder()
+            .status(StatusCode::OK)
+            .header(header::CONTENT_TYPE, "application/json")
+            .body(Full::from(
+                json!(VerifyResponsePayload {
+                    success: true,
+                    errors: vec![],
+                })
+                .to_string(),
+            ))
+            .unwrap()
     } else {
-        (
-            StatusCode::OK,
-            Json(VerifyResponsePayload {
-                success: false,
-                errors: vec!["incorrect-solution".into()],
-            }),
-        )
+        Response::builder()
+            .status(StatusCode::OK)
+            .header(header::CONTENT_TYPE, "application/json")
+            .body(Full::from(
+                json!(VerifyResponsePayload {
+                    success: false,
+                    errors: vec!["solution_incorrect".into()],
+                })
+                .to_string(),
+            ))
+            .unwrap()
     }
 }
