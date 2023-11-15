@@ -143,12 +143,19 @@ impl<SecretRepositoryT: SecretRepository> ContactFormMessageHandler<SecretReposi
         &self,
         solution: String,
     ) -> Result<(), FriendlyCaptchaError> {
-        let data = get_memoized(&FRIENDLYCAPTCHA_DATA, || {
+        let data = match get_memoized(&FRIENDLYCAPTCHA_DATA, || {
             self.secrets_repository
                 .get_secret(FRIENDLYCAPTCHA_DATA_NAME)
         })
         .await
-        .map_err(|e| FriendlyCaptchaError::CouldNotRetrieveSecretsError(format!("{e}")))?;
+        {
+            Ok(data) => data,
+            Err(error) => {
+                warn!("Could not retrieve FriendlyCaptcha credentials {FRIENDLYCAPTCHA_DATA_NAME} from AWS secrets manager: {error}");
+                warn!("Letting request pass without verification.");
+                return Ok(());
+            }
+        };
 
         let payload = FriendlyCaptchaVerifyPayload {
             solution,
@@ -363,7 +370,6 @@ enum FriendlyCaptchaError {
     SolutionInvalid,
     SolutionTimeoutOrDuplicate,
     UnrecognizedError(Vec<String>),
-    CouldNotRetrieveSecretsError(String),
 }
 
 impl FriendlyCaptchaError {
@@ -398,14 +404,6 @@ impl FriendlyCaptchaError {
                 body,
                 language,
             },
-            FriendlyCaptchaError::CouldNotRetrieveSecretsError(description) => {
-                ContactFormError::InternalError {
-                    description: format!("Unable to retrieve secrets: {description}"),
-                    subject,
-                    body,
-                    language,
-                }
-            }
         }
     }
 }
@@ -421,9 +419,6 @@ impl std::fmt::Display for FriendlyCaptchaError {
             }
             FriendlyCaptchaError::UnrecognizedError(errors) => {
                 write!(f, "Unrecognised error: {errors:?}")
-            }
-            FriendlyCaptchaError::CouldNotRetrieveSecretsError(description) => {
-                write!(f, "Unable to retrieve secrets: {description}")
             }
         }
     }
@@ -464,6 +459,7 @@ mod tests {
     use test_support::{
         fake_friendlycaptcha::FakeFriendlyCaptcha,
         fake_smtp::{start_poisoned_smtp_server, FakeSmtpServer, POISONED_SMTP_PORT, SMTP_PORT},
+        setup_logging,
     };
     use tokio::time::timeout;
 
@@ -672,6 +668,7 @@ mod tests {
     #[tokio::test]
     #[serial]
     async fn send_mail_when_secrets_service_fails_for_friendlycaptcha() {
+        setup_logging();
         init().await;
         let fake_friendlycaptcha =
             FakeFriendlyCaptcha::new(FAKE_FRIENDLYCAPTCHA_SITEKEY, FAKE_FRIENDLYCAPTCHA_SECRET);
@@ -684,13 +681,15 @@ mod tests {
 
         let response = subject.handle(event).await.unwrap();
 
-        expect_that!(response.status().as_u16(), eq(500));
+        expect_that!(response.status().as_u16(), eq(303));
         expect_that!(
             response.body(),
-            points_to(matches_pattern!(Body::Text(contains_substring(
-                "Something went wrong"
-            ))))
+            points_to(matches_pattern!(Body::Text(eq(""))))
         );
+        expect_that!(
+            timeout(Duration::from_secs(1), FAKE_SMTP.last_mail_content()).await,
+            ok(ok(anything()))
+        )
     }
 
     #[googletest::test]
