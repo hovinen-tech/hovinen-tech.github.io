@@ -21,11 +21,11 @@ pub struct FakeFriendlyCaptcha {
     required_secret: Cow<'static, str>,
     required_solution: Option<String>,
     return_invalid_response: bool,
+    return_solution_timeout: bool,
 }
 
 #[derive(Deserialize)]
 struct VerifyRequestPayload {
-    #[allow(unused)]
     solution: String,
     secret: String,
     sitekey: String,
@@ -48,6 +48,7 @@ impl FakeFriendlyCaptcha {
             required_secret: required_secret.into(),
             required_solution: None,
             return_invalid_response: false,
+            return_solution_timeout: false,
         }
     }
 
@@ -82,6 +83,13 @@ impl FakeFriendlyCaptcha {
         }
     }
 
+    pub fn return_solution_timeout(self) -> Self {
+        Self {
+            return_solution_timeout: true,
+            ..self
+        }
+    }
+
     pub fn verify_url() -> String {
         format!("http://{HOST_IP}:{FRIENDLYCAPTCHA_PORT}{VERIFY_PATH}")
     }
@@ -97,6 +105,18 @@ async fn verify(
             .header(header::CONTENT_TYPE, "text/plain")
             .body(Full::from("Invalid response"))
             .unwrap()
+    } else if state.return_solution_timeout {
+        Response::builder()
+            .status(StatusCode::OK)
+            .header(header::CONTENT_TYPE, "application/json")
+            .body(Full::from(
+                json!(VerifyResponsePayload {
+                    success: false,
+                    errors: vec!["solution_timeout_or_duplicate".into()],
+                })
+                .to_string(),
+            ))
+            .unwrap()
     } else if payload.sitekey != state.required_sitekey {
         Response::builder()
             .status(StatusCode::BAD_REQUEST)
@@ -104,14 +124,14 @@ async fn verify(
             .body(Full::from(
                 json!(VerifyResponsePayload {
                     success: false,
-                    errors: vec!["sitekey_invalid".into()],
+                    errors: vec!["bad_request".into()],
                 })
                 .to_string(),
             ))
             .unwrap()
     } else if payload.secret != state.required_secret {
         Response::builder()
-            .status(StatusCode::BAD_REQUEST)
+            .status(StatusCode::UNAUTHORIZED)
             .header(header::CONTENT_TYPE, "application/json")
             .body(Full::from(
                 json!(VerifyResponsePayload {
@@ -121,15 +141,15 @@ async fn verify(
                 .to_string(),
             ))
             .unwrap()
-    } else if state.required_solution.is_none() || Some(payload.solution) == state.required_solution
+    } else if state.required_solution.is_some() && Some(payload.solution) != state.required_solution
     {
         Response::builder()
             .status(StatusCode::OK)
             .header(header::CONTENT_TYPE, "application/json")
             .body(Full::from(
                 json!(VerifyResponsePayload {
-                    success: true,
-                    errors: vec![],
+                    success: false,
+                    errors: vec!["solution_invalid".into()],
                 })
                 .to_string(),
             ))
@@ -140,8 +160,8 @@ async fn verify(
             .header(header::CONTENT_TYPE, "application/json")
             .body(Full::from(
                 json!(VerifyResponsePayload {
-                    success: false,
-                    errors: vec!["solution_incorrect".into()],
+                    success: true,
+                    errors: vec![],
                 })
                 .to_string(),
             ))

@@ -1,7 +1,10 @@
 use log::debug;
 use mailin_embedded::{Handler, Server, SslConfig};
-use std::sync::Arc;
-use tokio::sync::watch::{self, error::RecvError, Receiver, Sender};
+use std::{sync::Arc, time::Duration};
+use tokio::{
+    sync::watch::{self, error::RecvError, Receiver, Sender},
+    time::timeout,
+};
 
 pub const SMTP_PORT: &str = "4567";
 
@@ -70,6 +73,11 @@ impl FakeSmtpServer {
         let content = receiver.borrow_and_update().clone();
         drop(receiver);
         Ok(content)
+    }
+
+    pub async fn flush(&self) {
+        let mut receiver = self.1.lock().await;
+        let _ = timeout(Duration::from_millis(100), receiver.changed()).await;
     }
 
     pub fn setup_environment() {
