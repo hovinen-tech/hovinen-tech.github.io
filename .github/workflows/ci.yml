@@ -53,12 +53,8 @@ jobs:
         uses: dtolnay/rust-toolchain@439cf607258077187679211f12aa6f19af4a0af7
         with:
           toolchain: ${{ matrix.toolchain }}
-      - name: Install cargo-lambda
-        run: python -m pip install cargo-lambda
       - name: cargo generate-lockfile
         if: hashFiles('Cargo.lock') == ''
         run: cargo generate-lockfile --manifest-path $PROJECT_PATH
-      - name: cargo lambda build --locked
-        run: cargo lambda build --locked --manifest-path $PROJECT_PATH
       - name: cargo test --locked
-        run: cargo test --locked --manifest-path $PROJECT_PATH
+        run: cargo test --locked --manifest-path $PROJECT_PATH --bins
