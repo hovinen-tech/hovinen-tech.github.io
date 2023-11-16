@@ -32,7 +32,7 @@
         <a href="{site_root}/index.html" class="nav-link">Home</a>
 
       </li>
-      <li class="nav-item active">
+      <li class="nav-item">
 
         <a href="{site_root}/about.html" class="nav-link">About me</a>
 
@@ -58,14 +58,14 @@
         <p>Please reach out by email or telephone:</p>
 
         <p>
-          Email: <a href="mailto:{email}">{email}</a>.
-          Telephone: {phone}
+          <strong>Email:</strong> <a href="mailto:{email}">{email}</a>.<br>
+          <strong>Telephone:</strong> {phone}
         </p>
 
         <p>Here is the message you tried to send:</p>
 
         <p>
-          Subject: {subject}
+          <strong>Subject: {subject}</strong>
         </p>
 
         {body | render_paragraphs}
