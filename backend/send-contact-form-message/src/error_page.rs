@@ -4,7 +4,10 @@ use serde_json::Value;
 use tinytemplate::{error::Error, format, TinyTemplate};
 
 const SEND_ERROR_TEMPLATE_NAME: &str = "send-error-template-en";
-const SEND_ERROR_TEMPLATE_EN: &str = include_str!("../assets/send-error.html");
+const SEND_ERROR_TEMPLATE_EN: &str = include_str!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/assets/send-error.html"
+));
 
 #[derive(Serialize)]
 struct Context {
