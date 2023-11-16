@@ -340,6 +340,7 @@ impl ContactFormError {
                 ..
             } => Response::builder()
                 .status(500)
+                .header("Content-Type", "text/html; charset=utf-8")
                 .body(render_error_page(subject.as_str(), body.as_str(), language.as_str()).into())
                 .unwrap(),
             ContactFormError::ClientError(description) => Response::builder()
@@ -661,6 +662,10 @@ mod tests {
             points_to(matches_pattern!(Body::Text(contains_substring(
                 "Something went wrong"
             ))))
+        );
+        expect_that!(
+            response.headers().get("Content-Type"),
+            some(eq("text/html; charset=utf-8"))
         );
     }
 
