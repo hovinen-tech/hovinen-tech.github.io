@@ -14,7 +14,7 @@ permissions: read-all
 
 env:
   CARGO_TERM_COLOR: always
-  PROJECT_PATH: send-contact-form-message/Cargo.toml
+  PROJECT_PATH: backend/Cargo.toml
 
 jobs:
 
@@ -39,7 +39,7 @@ jobs:
         uses: actions-rs/clippy-check@v1.0.7
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-          args: --manifest-path send-contact-form-message/Cargo.toml
+          args: --manifest-path backend/Cargo.toml
 
   test:
     runs-on: ubuntu-latest
