@@ -27,8 +27,7 @@
 # their entries' file path in the `include:` list.
 #
 exclude:
-  - contact-backend
-  - send-contact-form-message
+  - backend
 #   - .sass-cache/
 #   - .jekyll-cache/
 #   - gemfiles/
