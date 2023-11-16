@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
 members = [
-  "backend-lambda",
+  "send-contact-form-message",
   "test-support",
 ]

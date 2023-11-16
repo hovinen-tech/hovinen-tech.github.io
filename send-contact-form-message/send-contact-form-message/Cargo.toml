@@ -1,5 +1,5 @@
 [package]
-name = "backend-lambda"
+name = "send-contact-form-message"
 version = "0.1.0"
 edition = "2021"
 

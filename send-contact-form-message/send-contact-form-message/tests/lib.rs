@@ -115,7 +115,7 @@ fn build_function_code() -> FunctionCode {
     FunctionCode::builder()
         .s3_bucket("hot-reload")
         .s3_key(format!(
-            "{}/target/lambda/backend-lambda",
+            "{}/target/lambda/send-contact-form-message",
             std::env::current_dir()
                 .unwrap()
                 .parent() // Current directory is the workspace member, lambda was built in the
