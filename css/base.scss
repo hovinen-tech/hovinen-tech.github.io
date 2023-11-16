@@ -42,3 +42,20 @@ main {
     float: right;
     margin: 20px;
 }
+
+.testimonial {
+    border: solid 1px gray;
+    margin: 5px;
+    padding: 10px;
+
+    .citation {
+        text-align: right;
+    }
+}
+
+@media only screen and (min-width: 43.75rem) {
+    .testimonial {
+        box-shadow: 0 5px 8px grey;
+        margin: 20px;
+    }
+}
