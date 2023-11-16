@@ -36,7 +36,9 @@ jobs:
           toolchain: ${{ matrix.toolchain }}
           components: clippy
       - name: Set up templates
-        run: sed -e "s/{email}/test@example.com/g" -e "s/{phone}/+1 212 555-4567/g" backend/send-contact-form-message/assets/send-error.html.tmpl >backend/send-contact-form-message/assets/send-error.html
+        run: |
+          sed -e "s/{email}/test@example.com/g" -e "s/{phone}/+1 212 555-4567/g" backend/send-contact-form-message/assets/send-error.html.tmpl >backend/send-contact-form-message/assets/send-error.html
+          sed -e "s/{email}/test@example.com/g" -e "s/{phone}/+1 212 555-4567/g" backend/send-contact-form-message/assets/send-error.de.html.tmpl >backend/send-contact-form-message/assets/send-error.de.html
       - name: cargo clippy
         uses: actions-rs/clippy-check@v1.0.7
         with:
@@ -59,6 +61,8 @@ jobs:
         if: hashFiles('Cargo.lock') == ''
         run: cargo generate-lockfile --manifest-path $PROJECT_PATH
       - name: Set up templates
-        run: sed -e "s/{email}/test@example.com/g" -e "s/{phone}/+1 212 555-4567/g" backend/send-contact-form-message/assets/send-error.html.tmpl >backend/send-contact-form-message/assets/send-error.html
+        run: |
+          sed -e "s/{email}/test@example.com/g" -e "s/{phone}/+1 212 555-4567/g" backend/send-contact-form-message/assets/send-error.html.tmpl >backend/send-contact-form-message/assets/send-error.html
+          sed -e "s/{email}/test@example.com/g" -e "s/{phone}/+1 212 555-4567/g" backend/send-contact-form-message/assets/send-error.de.html.tmpl >backend/send-contact-form-message/assets/send-error.de.html
       - name: cargo test --locked
         run: cargo test --locked --manifest-path $PROJECT_PATH --bins
