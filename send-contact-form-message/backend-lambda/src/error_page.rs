@@ -9,8 +9,6 @@ const SEND_ERROR_TEMPLATE_EN: &str = include_str!("../assets/send-error.html");
 #[derive(Serialize)]
 struct Context {
     site_root: String,
-    email: String,
-    phone: String,
     subject: String,
     body: String,
 }
@@ -22,8 +20,6 @@ pub fn render_error_page<'a>(subject: &'a str, body: &'a str, _language: &'a str
         .unwrap();
     let context = Context {
         site_root: format!("https://{BASE_HOST}"),
-        email: "FIXME".into(),
-        phone: "FIXME".into(),
         subject: subject.into(),
         body: body.into(),
     };
