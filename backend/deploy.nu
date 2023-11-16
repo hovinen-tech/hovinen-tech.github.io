@@ -8,5 +8,5 @@ def main [contact_email: string, contact_phone: string] {
     }
 
     cargo lambda build -p send-contact-form-message --arm64 --release
-    cargo lambda deploy -p send-contact-form-message send-contact-form-message
+    cargo lambda deploy send-contact-form-message --region eu-north-1
 }
