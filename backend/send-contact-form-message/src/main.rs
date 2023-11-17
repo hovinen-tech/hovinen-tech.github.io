@@ -29,7 +29,7 @@ const SMTP_CREDENTIALS_NAME: &str = "smtp-ses-credentials";
 const FRIENDLYCAPTCHA_DATA_NAME: &str = "friendlycaptcha-data";
 const FRIENDLYCAPTCHA_VERIFY_URL: &str = "https://api.friendlycaptcha.com/api/v1/siteverify";
 
-const BASE_HOST: &str = "hovinen-tech.github.io";
+const BASE_HOST: &str = "hovinen.tech";
 
 #[tokio::main]
 async fn main() -> Result<(), Error> {

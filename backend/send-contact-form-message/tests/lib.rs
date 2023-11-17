@@ -73,7 +73,7 @@ async fn sends_email_to_recipient() -> Result<()> {
             status_code: some(eq(303)),
             headers: has_entry(
                 "location".to_string(),
-                eq("https://hovinen-tech.github.io/email-sent.html")
+                eq("https://hovinen.tech/email-sent.html")
             ),
             error_message: none(),
         }))
