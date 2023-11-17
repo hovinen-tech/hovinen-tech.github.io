@@ -1,5 +1,6 @@
 use crate::EnvironmentError;
 use async_trait::async_trait;
+use aws_config::BehaviorVersion;
 use serde::de::DeserializeOwned;
 
 #[async_trait]
@@ -17,7 +18,7 @@ pub struct AwsSecretsManagerSecretRepository(aws_sdk_secretsmanager::Client);
 #[async_trait]
 impl SecretRepository for AwsSecretsManagerSecretRepository {
     async fn open() -> Self {
-        let mut loader = aws_config::from_env().region("eu-north-1");
+        let mut loader = aws_config::defaults(BehaviorVersion::latest()).region("eu-north-1");
         if let Ok(url) = std::env::var("AWS_ENDPOINT_URL") {
             loader = loader.endpoint_url(url);
         }

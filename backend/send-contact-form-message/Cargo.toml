@@ -5,8 +5,8 @@ edition = "2021"
 
 [dependencies]
 async-trait = "0.1.74"
-aws-config = "0.57.1"
-aws-sdk-secretsmanager = "0.36.0"
+aws-config = "0.100.0"
+aws-sdk-secretsmanager = "0.37.0"
 lambda_http = "0.8.1"
 lambda_runtime = "0.8.1"
 lazy_static = "1.4.0"
@@ -14,7 +14,6 @@ lettre = { version = "0.11.1", features = ["rustls-tls", "tokio1", "tokio1-rustl
 reqwest = { version = "0.11.22", features = ["rustls", "tokio-rustls", "json", "__tls", "__rustls", "rustls-tls"], default-features = false }
 serde = { version = "1.0.190", features = ["serde_derive"] }
 serde_json = "1.0.108"
-serial_test = "2.0.0"
 tinytemplate = "1.2.1"
 tokio = { version = "1", features = ["macros"] }
 tracing = { version = "0.1", features = ["log"] }
@@ -22,6 +21,7 @@ tracing-subscriber = { version = "0.3", default-features = false, features = ["f
 
 [dev-dependencies]
 test-support = { path = "../test-support" }
-aws-sdk-lambda = "0.36.0"
+aws-sdk-lambda = "0.37.0"
 googletest = "0.10.0"
 log = "0.4.20"
+serial_test = "2.0.0"

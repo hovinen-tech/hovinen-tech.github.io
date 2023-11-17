@@ -6,9 +6,8 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-aws-config = "0.57.1"
-aws-sdk-lambda = "0.36.0"
-aws-sdk-secretsmanager = "0.36.0"
+aws-config = "0.100.0"
+aws-sdk-secretsmanager = "0.37.0"
 axum = { version = "0.6.20", features = ["macros"] }
 hyper = { version = "0.14.27", features = ["full"] }
 lazy_static = "1.4.0"
@@ -21,4 +20,3 @@ simplelog = "0.12.1"
 testcontainers = "0.15.0"
 tokio = { version = "1", features = ["macros"] }
 tower = "0.4.13"
-url = "2.4.1"

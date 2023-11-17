@@ -1,6 +1,6 @@
 use std::process::Command;
 
-use aws_config::SdkConfig;
+use aws_config::{BehaviorVersion, SdkConfig};
 use lazy_static::lazy_static;
 use log::info;
 use serde::Deserialize;
@@ -24,7 +24,7 @@ impl LocalStackConfig {
             Self::get_aws_endpoint_url();
         info!("Using AWS endpoint {aws_endpoint_url_from_test}");
         info!("Host from within system under test {aws_host_from_subject}");
-        let sdk_config = aws_config::from_env()
+        let sdk_config = aws_config::defaults(BehaviorVersion::latest())
             .endpoint_url(&aws_endpoint_url_from_test)
             .load()
             .await;
