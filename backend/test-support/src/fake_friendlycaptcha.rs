@@ -1,16 +1,17 @@
 use crate::HOST_IP;
 use axum::{
-    body::{Bytes, Full},
+    body::Body,
     extract::{Json, State},
     http::StatusCode,
     response::Response,
     routing::post,
-    Router, Server,
+    Router,
 };
 use hyper::header;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::borrow::Cow;
+use tokio::net::TcpListener;
 
 const FRIENDLYCAPTCHA_PORT: u16 = 5283;
 const VERIFY_PATH: &str = "/verify";
@@ -63,10 +64,10 @@ impl FakeFriendlyCaptcha {
         let app = Router::new()
             .route(VERIFY_PATH, post(verify))
             .with_state(self);
-        Server::bind(&format!("0.0.0.0:{FRIENDLYCAPTCHA_PORT}").parse().unwrap())
-            .serve(app.into_make_service())
+        let listener = TcpListener::bind(format!("0.0.0.0:{FRIENDLYCAPTCHA_PORT}"))
             .await
             .unwrap();
+        axum::serve(listener, app).await.unwrap();
     }
 
     pub fn require_solution(self, required_solution: impl AsRef<str>) -> Self {
@@ -98,18 +99,18 @@ impl FakeFriendlyCaptcha {
 async fn verify(
     State(state): State<FakeFriendlyCaptcha>,
     Json(payload): Json<VerifyRequestPayload>,
-) -> Response<Full<Bytes>> {
+) -> Response<Body> {
     if state.return_invalid_response {
         Response::builder()
             .status(StatusCode::OK)
             .header(header::CONTENT_TYPE, "text/plain")
-            .body(Full::from("Invalid response"))
+            .body(Body::from("Invalid response"))
             .unwrap()
     } else if state.return_solution_timeout {
         Response::builder()
             .status(StatusCode::OK)
             .header(header::CONTENT_TYPE, "application/json")
-            .body(Full::from(
+            .body(Body::from(
                 json!(VerifyResponsePayload {
                     success: false,
                     errors: vec!["solution_timeout_or_duplicate".into()],
@@ -121,7 +122,7 @@ async fn verify(
         Response::builder()
             .status(StatusCode::BAD_REQUEST)
             .header(header::CONTENT_TYPE, "application/json")
-            .body(Full::from(
+            .body(Body::from(
                 json!(VerifyResponsePayload {
                     success: false,
                     errors: vec!["bad_request".into()],
@@ -133,7 +134,7 @@ async fn verify(
         Response::builder()
             .status(StatusCode::UNAUTHORIZED)
             .header(header::CONTENT_TYPE, "application/json")
-            .body(Full::from(
+            .body(Body::from(
                 json!(VerifyResponsePayload {
                     success: false,
                     errors: vec!["secret_invalid".into()],
@@ -146,7 +147,7 @@ async fn verify(
         Response::builder()
             .status(StatusCode::OK)
             .header(header::CONTENT_TYPE, "application/json")
-            .body(Full::from(
+            .body(Body::from(
                 json!(VerifyResponsePayload {
                     success: false,
                     errors: vec!["solution_invalid".into()],
@@ -158,7 +159,7 @@ async fn verify(
         Response::builder()
             .status(StatusCode::OK)
             .header(header::CONTENT_TYPE, "application/json")
-            .body(Full::from(
+            .body(Body::from(
                 json!(VerifyResponsePayload {
                     success: true,
                     errors: vec![],
