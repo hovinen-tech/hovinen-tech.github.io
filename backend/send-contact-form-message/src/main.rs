@@ -13,7 +13,7 @@ use lettre::{
 use reqwest::{Client, StatusCode};
 use secrets::{AwsSecretsManagerSecretRepository, SecretRepository};
 use serde::{Deserialize, Serialize};
-use std::{borrow::Cow, fmt::Display, sync::Arc};
+use std::{borrow::Cow, fmt::Display};
 use tracing::{error, warn};
 
 lazy_static! {
@@ -43,7 +43,7 @@ async fn main() -> Result<(), Error> {
 
 struct ContactFormMessageHandler<SecretRepositoryT: SecretRepository> {
     secrets_repository: SecretRepositoryT,
-    mailer: OnceCell<Arc<AsyncSmtpTransport<Tokio1Executor>>>,
+    mailer: OnceCell<AsyncSmtpTransport<Tokio1Executor>>,
     friendlycaptcha_data: OnceCell<FriendlyCaptchaData>,
 }
 
@@ -220,7 +220,7 @@ impl<SecretRepositoryT: SecretRepository> ContactFormMessageHandler<SecretReposi
             .unwrap_or(FRIENDLYCAPTCHA_VERIFY_URL.into())
     }
 
-    async fn initialise_mailer(&self) -> Result<Arc<AsyncSmtpTransport<Tokio1Executor>>, Error> {
+    async fn initialise_mailer(&self) -> Result<AsyncSmtpTransport<Tokio1Executor>, Error> {
         let smtp_url = Self::smtp_url();
         println!("initialise_mailer: Connecting to {smtp_url}");
         let mut builder = AsyncSmtpTransport::<Tokio1Executor>::from_url(&smtp_url)?
@@ -241,7 +241,7 @@ impl<SecretRepositoryT: SecretRepository> ContactFormMessageHandler<SecretReposi
             ));
         }
 
-        Ok(Arc::new(builder.build()))
+        Ok(builder.build())
     }
 
     fn smtp_url() -> Cow<'static, str> {
