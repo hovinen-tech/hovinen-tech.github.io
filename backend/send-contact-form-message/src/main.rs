@@ -43,8 +43,8 @@ async fn main() -> Result<(), Error> {
 
 struct ContactFormMessageHandler<SecretRepositoryT: SecretRepository> {
     secrets_repository: SecretRepositoryT,
-    mailer: OnceCell<Result<Arc<AsyncSmtpTransport<Tokio1Executor>>, Error>>,
-    friendlycaptcha_data: OnceCell<Result<FriendlyCaptchaData, lambda_http::Error>>,
+    mailer: OnceCell<Arc<AsyncSmtpTransport<Tokio1Executor>>>,
+    friendlycaptcha_data: OnceCell<FriendlyCaptchaData>,
 }
 
 impl<SecretRepositoryT: SecretRepository> ContactFormMessageHandler<SecretRepositoryT> {
@@ -124,9 +124,8 @@ impl<SecretRepositoryT: SecretRepository> ContactFormMessageHandler<SecretReposi
             })?;
         let mailer = self
             .mailer
-            .get_or_init(self.initialise_mailer())
+            .get_or_try_init(self.initialise_mailer())
             .await
-            .as_ref()
             .map_err(|e| ContactFormError::InternalError {
                 description: format!("Unable to connect to SMTP server: {e}"),
                 subject: subject.clone(),
@@ -150,7 +149,7 @@ impl<SecretRepositoryT: SecretRepository> ContactFormMessageHandler<SecretReposi
     ) -> Result<(), FriendlyCaptchaError> {
         let data = match self
             .friendlycaptcha_data
-            .get_or_init(
+            .get_or_try_init(
                 self.secrets_repository
                     .get_secret(FRIENDLYCAPTCHA_DATA_NAME),
             )
@@ -223,6 +222,7 @@ impl<SecretRepositoryT: SecretRepository> ContactFormMessageHandler<SecretReposi
 
     async fn initialise_mailer(&self) -> Result<Arc<AsyncSmtpTransport<Tokio1Executor>>, Error> {
         let smtp_url = Self::smtp_url();
+        println!("initialise_mailer: Connecting to {smtp_url}");
         let mut builder = AsyncSmtpTransport::<Tokio1Executor>::from_url(&smtp_url)?
             .authentication(vec![Mechanism::Plain]);
 
@@ -524,6 +524,41 @@ mod tests {
     #[googletest::test]
     #[tokio::test]
     #[serial]
+    async fn returns_400_when_captcha_solution_is_wrong_on_second_attempt() -> Result<()> {
+        init().await;
+        let fake_friendlycaptcha =
+            FakeFriendlyCaptcha::new(FAKE_FRIENDLYCAPTCHA_SITEKEY, FAKE_FRIENDLYCAPTCHA_SECRET)
+                .require_solution(CORRECT_CAPTCHA_SOLUTION);
+        tokio::spawn(fake_friendlycaptcha.serve());
+        let mut subject = ContactFormMessageHandlerForTesting::new().await;
+        let event = EventPayload::arbitrary()
+            .with_captcha_solution("incorrect captcha solution")
+            .into_event();
+        subject
+            .secrets_repository
+            .remove_secret(FRIENDLYCAPTCHA_DATA_NAME);
+        subject.handle(event).await.unwrap();
+        let event = EventPayload::arbitrary()
+            .with_captcha_solution("incorrect captcha solution")
+            .into_event();
+        subject.secrets_repository.add_secret(
+            FRIENDLYCAPTCHA_DATA_NAME,
+            format!(
+                r#"{{
+                    "FRIENDLYCAPTCHA_SITEKEY": "{FAKE_FRIENDLYCAPTCHA_SITEKEY}",
+                    "FRIENDLYCAPTCHA_SECRET": "{FAKE_FRIENDLYCAPTCHA_SECRET}"
+                }}"#
+            ),
+        );
+
+        let response = subject.handle(event).await.unwrap();
+
+        verify_that!(response.status().as_u16(), eq(400))
+    }
+
+    #[googletest::test]
+    #[tokio::test]
+    #[serial]
     async fn sends_mail_when_friendlycaptcha_sends_invalid_response() {
         init().await;
         let fake_friendlycaptcha =
@@ -714,6 +749,34 @@ mod tests {
                 "Something went wrong"
             ))))
         );
+    }
+
+    #[googletest::test]
+    #[tokio::test]
+    #[serial]
+    async fn sends_mail_when_second_attempt_to_obtain_smtp_secrets_succeeds() {
+        init().await;
+        let fake_friendlycaptcha =
+            FakeFriendlyCaptcha::new(FAKE_FRIENDLYCAPTCHA_SITEKEY, FAKE_FRIENDLYCAPTCHA_SECRET);
+        tokio::spawn(fake_friendlycaptcha.serve());
+        let event = EventPayload::arbitrary().into_event();
+        let mut subject = ContactFormMessageHandlerForTesting::new().await;
+        {
+            // Credentials are only retrieved if using smtps
+            let _env = TemporaryEnv::new("SMTP_URL", format!("smtps://localhost:{SMTP_PORT}"));
+            let event = EventPayload::arbitrary().into_event();
+            subject
+                .secrets_repository
+                .remove_secret(SMTP_CREDENTIALS_NAME);
+            subject.handle(event).await.unwrap();
+        }
+
+        subject.handle(event).await.unwrap();
+
+        expect_that!(
+            timeout(Duration::from_secs(1), FAKE_SMTP.last_mail_content()).await,
+            ok(ok(anything()))
+        )
     }
 
     #[googletest::test]

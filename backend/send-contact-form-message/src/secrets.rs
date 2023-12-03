@@ -58,6 +58,10 @@ pub mod test_support {
         pub fn remove_secret(&mut self, name: &'static str) {
             self.0.remove(name);
         }
+
+        pub fn add_secret(&mut self, name: &'static str, value: impl Into<String>) {
+            self.0.insert(name, value.into());
+        }
     }
 
     #[async_trait]
