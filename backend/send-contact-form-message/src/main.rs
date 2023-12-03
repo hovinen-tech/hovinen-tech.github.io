@@ -1,6 +1,7 @@
 mod error_page;
 mod secrets;
 
+use async_once_cell::OnceCell;
 use error_page::render_error_page;
 use lambda_http::{run, service_fn, Body, Error, Request, RequestPayloadExt, Response};
 use lazy_static::lazy_static;
@@ -12,13 +13,10 @@ use lettre::{
 use reqwest::{Client, StatusCode};
 use secrets::{AwsSecretsManagerSecretRepository, SecretRepository};
 use serde::{Deserialize, Serialize};
-use std::{borrow::Cow, fmt::Display, future::Future, sync::Arc};
-use tokio::sync::Mutex;
+use std::{borrow::Cow, fmt::Display, sync::Arc};
 use tracing::{error, warn};
 
 lazy_static! {
-    static ref MAILER: Mutex<Option<Arc<AsyncSmtpTransport<Tokio1Executor>>>> = Mutex::new(None);
-    static ref FRIENDLYCAPTCHA_DATA: Mutex<Option<FriendlyCaptchaData>> = Mutex::new(None);
     static ref FROM_ADDRESS: Mailbox = "Web contact form <noreply@hovinen.tech>".parse().unwrap();
     static ref TO_ADDRESS: Mailbox = "Bradford Hovinen <hovinen@hovinen.tech>".parse().unwrap();
 }
@@ -45,12 +43,16 @@ async fn main() -> Result<(), Error> {
 
 struct ContactFormMessageHandler<SecretRepositoryT: SecretRepository> {
     secrets_repository: SecretRepositoryT,
+    mailer: OnceCell<Result<Arc<AsyncSmtpTransport<Tokio1Executor>>, Error>>,
+    friendlycaptcha_data: OnceCell<Result<FriendlyCaptchaData, lambda_http::Error>>,
 }
 
 impl<SecretRepositoryT: SecretRepository> ContactFormMessageHandler<SecretRepositoryT> {
     async fn new() -> Self {
         Self {
             secrets_repository: SecretRepositoryT::open().await,
+            mailer: Default::default(),
+            friendlycaptcha_data: Default::default(),
         }
     }
 
@@ -120,8 +122,11 @@ impl<SecretRepositoryT: SecretRepository> ContactFormMessageHandler<SecretReposi
                 body: body.clone(),
                 language: language.clone(),
             })?;
-        let mailer = get_memoized(&MAILER, || self.initialise_mailer())
+        let mailer = self
+            .mailer
+            .get_or_init(self.initialise_mailer())
             .await
+            .as_ref()
             .map_err(|e| ContactFormError::InternalError {
                 description: format!("Unable to connect to SMTP server: {e}"),
                 subject: subject.clone(),
@@ -143,11 +148,13 @@ impl<SecretRepositoryT: SecretRepository> ContactFormMessageHandler<SecretReposi
         &self,
         solution: String,
     ) -> Result<(), FriendlyCaptchaError> {
-        let data = match get_memoized(&FRIENDLYCAPTCHA_DATA, || {
-            self.secrets_repository
-                .get_secret(FRIENDLYCAPTCHA_DATA_NAME)
-        })
-        .await
+        let data = match self
+            .friendlycaptcha_data
+            .get_or_init(
+                self.secrets_repository
+                    .get_secret(FRIENDLYCAPTCHA_DATA_NAME),
+            )
+            .await
         {
             Ok(data) => data,
             Err(error) => {
@@ -159,8 +166,8 @@ impl<SecretRepositoryT: SecretRepository> ContactFormMessageHandler<SecretReposi
 
         let payload = FriendlyCaptchaVerifyPayload {
             solution,
-            sitekey: data.sitekey,
-            secret: data.secret,
+            sitekey: &data.sitekey,
+            secret: &data.secret,
         };
         let response = match Client::new()
             .post(Self::friendlycaptcha_verify_url().as_ref())
@@ -252,21 +259,6 @@ impl<SecretRepositoryT: SecretRepository> ContactFormMessageHandler<SecretReposi
     }
 }
 
-async fn get_memoized<T: Clone, F: Future<Output = Result<T, Error>>>(
-    mutex: &Mutex<Option<T>>,
-    factory: impl FnOnce() -> F,
-) -> Result<T, Error> {
-    let mut guard = mutex.lock().await;
-    match &*guard {
-        Some(data) => Ok(data.clone()),
-        None => {
-            let data: T = factory().await?;
-            *guard = Some(data.clone());
-            Ok(data)
-        }
-    }
-}
-
 #[derive(Deserialize, Debug)]
 struct ContactFormMessage {
     name: Option<String>,
@@ -287,10 +279,10 @@ struct FriendlyCaptchaData {
 }
 
 #[derive(Serialize)]
-struct FriendlyCaptchaVerifyPayload {
+struct FriendlyCaptchaVerifyPayload<'a> {
     solution: String,
-    secret: String,
-    sitekey: String,
+    secret: &'a str,
+    sitekey: &'a str,
 }
 
 #[derive(Deserialize)]
@@ -449,7 +441,7 @@ mod tests {
         secrets::test_support::{
             FakeSecretRepsitory, FAKE_FRIENDLYCAPTCHA_SECRET, FAKE_FRIENDLYCAPTCHA_SITEKEY,
         },
-        FRIENDLYCAPTCHA_DATA, FRIENDLYCAPTCHA_DATA_NAME, MAILER, SMTP_CREDENTIALS_NAME,
+        FRIENDLYCAPTCHA_DATA_NAME, SMTP_CREDENTIALS_NAME,
     };
     use googletest::prelude::*;
     use lambda_http::{http::HeaderValue, Body, Request};
@@ -755,8 +747,6 @@ mod tests {
         setup_environment();
         FAKE_SMTP.start();
         FAKE_SMTP.flush().await;
-        *MAILER.lock().await = None;
-        *FRIENDLYCAPTCHA_DATA.lock().await = None;
     }
 
     fn setup_environment() {
