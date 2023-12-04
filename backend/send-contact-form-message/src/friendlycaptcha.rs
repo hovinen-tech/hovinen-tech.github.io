@@ -1,9 +1,8 @@
-use std::borrow::Cow;
-
 use crate::{secrets::SecretRepository, ContactFormError};
 use async_once_cell::OnceCell;
 use reqwest::{Client, Response, StatusCode};
 use serde::{Deserialize, Serialize};
+use std::borrow::Cow;
 use tracing::warn;
 
 pub const FRIENDLYCAPTCHA_DATA_NAME: &str = "friendlycaptcha-data";

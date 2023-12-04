@@ -42,13 +42,12 @@ impl SecretRepository for AwsSecretsManagerSecretRepository {
 
 #[cfg(test)]
 pub mod test_support {
-    use std::collections::HashMap;
-
     use super::SecretRepository;
     use crate::{friendlycaptcha::FRIENDLYCAPTCHA_DATA_NAME, SMTP_CREDENTIALS_NAME};
     use async_trait::async_trait;
     use aws_sdk_secretsmanager::types::error::ResourceNotFoundException;
     use serde::de::DeserializeOwned;
+    use std::collections::HashMap;
 
     pub const FAKE_FRIENDLYCAPTCHA_SITEKEY: &str = "arbitrary sitekey";
     pub const FAKE_FRIENDLYCAPTCHA_SECRET: &str = "arbitrary secret";

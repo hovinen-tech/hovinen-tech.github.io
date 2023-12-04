@@ -92,6 +92,23 @@ impl<SecretRepositoryT: SecretRepository> ContactFormMessageHandler<SecretReposi
         self.send_email(email, &validated_message).await
     }
 
+    async fn verify_captcha<'a>(
+        &self,
+        message: &ValidatedContactFormMessage<'a>,
+    ) -> Result<(), ContactFormError> {
+        self.friendlycaptcha_verifier
+            .verify_token(message.friendlycaptcha_token)
+            .await
+            .map_err(|e| {
+                e.into_contact_form_error(
+                    message.subject.into(),
+                    message.body.into(),
+                    message.language.into(),
+                )
+            })?;
+        Ok(())
+    }
+
     fn construct_email_message(
         &self,
         message: &ValidatedContactFormMessage,
@@ -146,23 +163,6 @@ impl<SecretRepositoryT: SecretRepository> ContactFormMessageHandler<SecretReposi
                 language: validated_message.language.into(),
             }),
         }
-    }
-
-    async fn verify_captcha<'a>(
-        &self,
-        message: &ValidatedContactFormMessage<'a>,
-    ) -> Result<(), ContactFormError> {
-        self.friendlycaptcha_verifier
-            .verify_token(message.friendlycaptcha_token)
-            .await
-            .map_err(|e| {
-                e.into_contact_form_error(
-                    message.subject.into(),
-                    message.body.into(),
-                    message.language.into(),
-                )
-            })?;
-        Ok(())
     }
 
     async fn initialise_mailer(&self) -> Result<AsyncSmtpTransport<Tokio1Executor>, Error> {
