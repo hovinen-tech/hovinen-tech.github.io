@@ -10,7 +10,7 @@ use lettre::{
     transport::smtp::authentication::{Credentials, Mechanism},
     AsyncSmtpTransport, AsyncTransport, Message, Tokio1Executor,
 };
-use reqwest::{Client, StatusCode};
+use reqwest::{Client, Response as ReqwestResponse, StatusCode};
 use secrets::{AwsSecretsManagerSecretRepository, SecretRepository};
 use serde::{Deserialize, Serialize};
 use std::{borrow::Cow, fmt::Display};
@@ -67,7 +67,7 @@ impl<SecretRepositoryT: SecretRepository> ContactFormMessageHandler<SecretReposi
             error.log();
             return Ok(error.into_response());
         };
-        match self.send_message(message).await {
+        match self.process_message(message).await {
             Ok(language) => Ok(Response::builder()
                 .status(303)
                 .header("Location", Self::create_success_url(language.as_str()))
@@ -80,73 +80,110 @@ impl<SecretRepositoryT: SecretRepository> ContactFormMessageHandler<SecretReposi
         }
     }
 
-    async fn send_message(&self, message: ContactFormMessage) -> Result<String, ContactFormError> {
-        let ContactFormMessage {
-            name,
-            email: Some(email),
-            subject: Some(subject),
-            body: Some(body),
-            language: Some(language),
-            friendlycaptcha_token: Some(friendlycaptcha_token),
-        } = message
-        else {
-            return Err(ContactFormError::ClientError(
-                "Missing fields in request".into(),
-            ));
-        };
-        self.verify_friendlycaptcha_token(friendlycaptcha_token)
-            .await
-            .map_err(|e| {
-                e.into_contact_form_error(subject.clone(), body.clone(), language.clone())
-            })?;
-        let reply_to_string = if let Some(name) = name {
-            format!("{} <{}>", name, email)
+    async fn process_message(
+        &self,
+        message: ContactFormMessage,
+    ) -> Result<String, ContactFormError> {
+        let validated_message = message.validate()?;
+        self.verify_captcha(&validated_message).await?;
+        let email = self.construct_email_message(&validated_message)?;
+        self.send_email(email, &validated_message).await
+    }
+
+    fn construct_email_message(
+        &self,
+        message: &ValidatedContactFormMessage,
+    ) -> Result<Message, ContactFormError> {
+        let reply_to_string = if let Some(name) = message.name {
+            format!("{} <{}>", name, message.email)
         } else {
-            email.clone()
+            message.email.into()
         };
         let Ok(reply_to_email) = reply_to_string.parse() else {
             return Err(ContactFormError::ClientError(format!(
-                "Invalid email address {email}"
+                "Invalid email address {}",
+                message.email
             )));
         };
-        let email = Message::builder()
+        Ok(Message::builder()
             .from(FROM_ADDRESS.clone())
             .reply_to(reply_to_email)
             .to(TO_ADDRESS.clone())
-            .subject(subject.clone())
+            .subject(message.subject)
             .header(ContentType::TEXT_PLAIN)
-            .body(body.clone())
+            .body(message.body.to_string())
             .map_err(|error| ContactFormError::InternalError {
                 description: format!("Error building message: {error}"),
-                subject: subject.clone(),
-                body: body.clone(),
-                language: language.clone(),
-            })?;
+                subject: message.subject.into(),
+                body: message.body.into(),
+                language: message.language.into(),
+            })?)
+    }
+
+    async fn send_email<'a>(
+        &self,
+        email: Message,
+        validated_message: &ValidatedContactFormMessage<'a>,
+    ) -> Result<String, ContactFormError> {
         let mailer = self
             .mailer
             .get_or_try_init(self.initialise_mailer())
             .await
             .map_err(|e| ContactFormError::InternalError {
                 description: format!("Unable to connect to SMTP server: {e}"),
-                subject: subject.clone(),
-                body: body.clone(),
-                language: language.clone(),
+                subject: validated_message.subject.into(),
+                body: validated_message.body.into(),
+                language: validated_message.language.into(),
             })?;
         match mailer.send(email).await {
-            Ok(_) => Ok(language),
+            Ok(_) => Ok(validated_message.language.into()),
             Err(error) => Err(ContactFormError::InternalError {
                 description: format!("Error sending message: {error}"),
-                subject,
-                body,
-                language,
+                subject: validated_message.subject.into(),
+                body: validated_message.body.into(),
+                language: validated_message.language.into(),
             }),
         }
     }
 
+    async fn verify_captcha<'a>(
+        &self,
+        message: &ValidatedContactFormMessage<'a>,
+    ) -> Result<(), ContactFormError> {
+        self.verify_friendlycaptcha_token(message.friendlycaptcha_token)
+            .await
+            .map_err(|e| {
+                e.into_contact_form_error(
+                    message.subject.into(),
+                    message.body.into(),
+                    message.language.into(),
+                )
+            })?;
+        Ok(())
+    }
+
     async fn verify_friendlycaptcha_token(
         &self,
-        solution: String,
+        solution: &str,
     ) -> Result<(), FriendlyCaptchaError> {
+        let payload = match self.build_friendlycaptcha_payload(solution).await {
+            Ok(response) => response,
+            Err(FriendlyCaptchaError::BackendError) => return Ok(()),
+            Err(e) => return Err(e),
+        };
+        let response = match Self::send_friendlycaptcha_token(payload).await {
+            Ok(response) => response,
+            Err(FriendlyCaptchaError::BackendError) => return Ok(()),
+            Err(e) => return Err(e),
+        };
+        self.process_friendlycaptcha_response(response).await?;
+        Ok(())
+    }
+
+    async fn build_friendlycaptcha_payload<'a>(
+        &'a self,
+        solution: &'a str,
+    ) -> Result<FriendlyCaptchaVerifyPayload<'a>, FriendlyCaptchaError> {
         let data = match self
             .friendlycaptcha_data
             .get_or_try_init(
@@ -159,33 +196,52 @@ impl<SecretRepositoryT: SecretRepository> ContactFormMessageHandler<SecretReposi
             Err(error) => {
                 warn!("Could not retrieve FriendlyCaptcha credentials {FRIENDLYCAPTCHA_DATA_NAME} from AWS secrets manager: {error}");
                 warn!("Letting request pass without verification.");
-                return Ok(());
+                return Err(FriendlyCaptchaError::BackendError);
             }
         };
 
-        let payload = FriendlyCaptchaVerifyPayload {
+        Ok(FriendlyCaptchaVerifyPayload {
             solution,
             sitekey: &data.sitekey,
             secret: &data.secret,
-        };
-        let response = match Client::new()
-            .post(Self::friendlycaptcha_verify_url().as_ref())
-            .json(&payload)
-            .send()
-            .await
-        {
-            Ok(response) => response,
-            Err(error) => {
-                if let Some(status) = error.status() {
-                    if status.is_client_error() {
-                        return Err(FriendlyCaptchaError::ClientError(error));
+        })
+    }
+
+    async fn send_friendlycaptcha_token<'a>(
+        payload: FriendlyCaptchaVerifyPayload<'a>,
+    ) -> Result<ReqwestResponse, FriendlyCaptchaError> {
+        Ok(
+            match Client::new()
+                .post(Self::friendlycaptcha_verify_url().as_ref())
+                .json(&payload)
+                .send()
+                .await
+            {
+                Ok(response) => response,
+                Err(error) => {
+                    if let Some(status) = error.status() {
+                        if status.is_client_error() {
+                            return Err(FriendlyCaptchaError::ClientError(error));
+                        }
                     }
+                    warn!("Error verifying FriendlyCaptcha solution: {error}");
+                    warn!("Letting request pass without verification.");
+                    return Err(FriendlyCaptchaError::BackendError);
                 }
-                warn!("Error verifying FriendlyCaptcha solution: {error}");
-                warn!("Letting request pass without verification.");
-                return Ok(());
-            }
-        };
+            },
+        )
+    }
+
+    fn friendlycaptcha_verify_url() -> Cow<'static, str> {
+        std::env::var("FRIENDLYCAPTCHA_VERIFY_URL")
+            .map(Cow::Owned)
+            .unwrap_or(FRIENDLYCAPTCHA_VERIFY_URL.into())
+    }
+
+    async fn process_friendlycaptcha_response(
+        &self,
+        response: ReqwestResponse,
+    ) -> Result<(), FriendlyCaptchaError> {
         if response.status() == StatusCode::UNAUTHORIZED {
             return Err(FriendlyCaptchaError::IncorrectSecret);
         }
@@ -212,12 +268,6 @@ impl<SecretRepositoryT: SecretRepository> ContactFormMessageHandler<SecretReposi
                 response_body.errors,
             ))
         }
-    }
-
-    fn friendlycaptcha_verify_url() -> Cow<'static, str> {
-        std::env::var("FRIENDLYCAPTCHA_VERIFY_URL")
-            .map(Cow::Owned)
-            .unwrap_or(FRIENDLYCAPTCHA_VERIFY_URL.into())
     }
 
     async fn initialise_mailer(&self) -> Result<AsyncSmtpTransport<Tokio1Executor>, Error> {
@@ -270,6 +320,42 @@ struct ContactFormMessage {
     friendlycaptcha_token: Option<String>,
 }
 
+impl ContactFormMessage {
+    fn validate(&self) -> Result<ValidatedContactFormMessage, ContactFormError> {
+        let ContactFormMessage {
+            name,
+            email: Some(email),
+            subject: Some(subject),
+            body: Some(body),
+            language: Some(language),
+            friendlycaptcha_token: Some(friendlycaptcha_token),
+        } = self
+        else {
+            return Err(ContactFormError::ClientError(
+                "Missing fields in request".into(),
+            ));
+        };
+
+        Ok(ValidatedContactFormMessage {
+            name: name.as_ref().map(|s| s.as_str()),
+            email,
+            subject,
+            body,
+            language,
+            friendlycaptcha_token,
+        })
+    }
+}
+
+struct ValidatedContactFormMessage<'a> {
+    name: Option<&'a str>,
+    email: &'a str,
+    subject: &'a str,
+    body: &'a str,
+    language: &'a str,
+    friendlycaptcha_token: &'a str,
+}
+
 #[derive(Deserialize, Clone)]
 struct FriendlyCaptchaData {
     #[serde(rename = "FRIENDLYCAPTCHA_SITEKEY")]
@@ -280,7 +366,7 @@ struct FriendlyCaptchaData {
 
 #[derive(Serialize)]
 struct FriendlyCaptchaVerifyPayload<'a> {
-    solution: String,
+    solution: &'a str,
     secret: &'a str,
     sitekey: &'a str,
 }
@@ -363,6 +449,7 @@ enum FriendlyCaptchaError {
     SolutionInvalid,
     SolutionTimeoutOrDuplicate,
     UnrecognizedError(Vec<String>),
+    BackendError,
 }
 
 impl FriendlyCaptchaError {
@@ -397,6 +484,12 @@ impl FriendlyCaptchaError {
                 body,
                 language,
             },
+            FriendlyCaptchaError::BackendError => ContactFormError::InternalError {
+                description: "FriendlyCaptcha backend error".into(),
+                subject,
+                body,
+                language,
+            },
         }
     }
 }
@@ -413,6 +506,7 @@ impl std::fmt::Display for FriendlyCaptchaError {
             FriendlyCaptchaError::UnrecognizedError(errors) => {
                 write!(f, "Unrecognised error: {errors:?}")
             }
+            FriendlyCaptchaError::BackendError => write!(f, "FriendlyCaptcha backend error"),
         }
     }
 }
