@@ -68,7 +68,7 @@ impl<SecretRepositoryT: SecretRepository> FriendlyCaptchaVerifier<SecretReposito
     ) -> Result<Response, FriendlyCaptchaError> {
         Ok(
             match Client::new()
-                .post(Self::verify_url().as_ref())
+                .post(Self::verification_url().as_ref())
                 .json(&payload)
                 .send()
                 .await
@@ -88,7 +88,7 @@ impl<SecretRepositoryT: SecretRepository> FriendlyCaptchaVerifier<SecretReposito
         )
     }
 
-    fn verify_url() -> Cow<'static, str> {
+    fn verification_url() -> Cow<'static, str> {
         std::env::var("FRIENDLYCAPTCHA_VERIFY_URL")
             .map(Cow::Owned)
             .unwrap_or(FRIENDLYCAPTCHA_VERIFY_URL.into())
