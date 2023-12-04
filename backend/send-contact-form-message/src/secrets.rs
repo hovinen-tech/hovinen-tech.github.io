@@ -13,6 +13,7 @@ pub trait SecretRepository {
     ) -> Result<T, lambda_http::Error>;
 }
 
+#[derive(Clone)]
 pub struct AwsSecretsManagerSecretRepository(aws_sdk_secretsmanager::Client);
 
 #[async_trait]
@@ -44,7 +45,7 @@ pub mod test_support {
     use std::collections::HashMap;
 
     use super::SecretRepository;
-    use crate::{FRIENDLYCAPTCHA_DATA_NAME, SMTP_CREDENTIALS_NAME};
+    use crate::{friendlycaptcha::FRIENDLYCAPTCHA_DATA_NAME, SMTP_CREDENTIALS_NAME};
     use async_trait::async_trait;
     use aws_sdk_secretsmanager::types::error::ResourceNotFoundException;
     use serde::de::DeserializeOwned;
@@ -52,6 +53,7 @@ pub mod test_support {
     pub const FAKE_FRIENDLYCAPTCHA_SITEKEY: &str = "arbitrary sitekey";
     pub const FAKE_FRIENDLYCAPTCHA_SECRET: &str = "arbitrary secret";
 
+    #[derive(Clone)]
     pub struct FakeSecretRepsitory(HashMap<&'static str, String>);
 
     impl FakeSecretRepsitory {

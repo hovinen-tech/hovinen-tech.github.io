@@ -1,8 +1,10 @@
 mod error_page;
+mod friendlycaptcha;
 mod secrets;
 
 use async_once_cell::OnceCell;
 use error_page::render_error_page;
+use friendlycaptcha::FriendlyCaptchaVerifier;
 use lambda_http::{run, service_fn, Body, Error, Request, RequestPayloadExt, Response};
 use lazy_static::lazy_static;
 use lettre::{
@@ -10,11 +12,10 @@ use lettre::{
     transport::smtp::authentication::{Credentials, Mechanism},
     AsyncSmtpTransport, AsyncTransport, Message, Tokio1Executor,
 };
-use reqwest::{Client, Response as ReqwestResponse, StatusCode};
 use secrets::{AwsSecretsManagerSecretRepository, SecretRepository};
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use std::{borrow::Cow, fmt::Display};
-use tracing::{error, warn};
+use tracing::error;
 
 lazy_static! {
     static ref FROM_ADDRESS: Mailbox = "Web contact form <noreply@hovinen.tech>".parse().unwrap();
@@ -23,9 +24,6 @@ lazy_static! {
 
 const SMTP_URL: &str = "smtps://email-smtp.eu-north-1.amazonaws.com";
 const SMTP_CREDENTIALS_NAME: &str = "smtp-ses-credentials";
-
-const FRIENDLYCAPTCHA_DATA_NAME: &str = "friendlycaptcha-data";
-const FRIENDLYCAPTCHA_VERIFY_URL: &str = "https://api.friendlycaptcha.com/api/v1/siteverify";
 
 const BASE_HOST: &str = "hovinen.tech";
 
@@ -44,15 +42,19 @@ async fn main() -> Result<(), Error> {
 struct ContactFormMessageHandler<SecretRepositoryT: SecretRepository> {
     secrets_repository: SecretRepositoryT,
     mailer: OnceCell<AsyncSmtpTransport<Tokio1Executor>>,
-    friendlycaptcha_data: OnceCell<FriendlyCaptchaData>,
+    friendlycaptcha_verifier: FriendlyCaptchaVerifier<SecretRepositoryT>,
 }
 
 impl<SecretRepositoryT: SecretRepository> ContactFormMessageHandler<SecretRepositoryT> {
-    async fn new() -> Self {
+    async fn new() -> Self
+    where
+        SecretRepositoryT: Clone,
+    {
+        let secrets_repository = SecretRepositoryT::open().await;
         Self {
-            secrets_repository: SecretRepositoryT::open().await,
+            secrets_repository: secrets_repository.clone(),
             mailer: Default::default(),
-            friendlycaptcha_data: Default::default(),
+            friendlycaptcha_verifier: FriendlyCaptchaVerifier::new(secrets_repository),
         }
     }
 
@@ -150,7 +152,8 @@ impl<SecretRepositoryT: SecretRepository> ContactFormMessageHandler<SecretReposi
         &self,
         message: &ValidatedContactFormMessage<'a>,
     ) -> Result<(), ContactFormError> {
-        self.verify_friendlycaptcha_token(message.friendlycaptcha_token)
+        self.friendlycaptcha_verifier
+            .verify_token(message.friendlycaptcha_token)
             .await
             .map_err(|e| {
                 e.into_contact_form_error(
@@ -160,114 +163,6 @@ impl<SecretRepositoryT: SecretRepository> ContactFormMessageHandler<SecretReposi
                 )
             })?;
         Ok(())
-    }
-
-    async fn verify_friendlycaptcha_token(
-        &self,
-        solution: &str,
-    ) -> Result<(), FriendlyCaptchaError> {
-        let payload = match self.build_friendlycaptcha_payload(solution).await {
-            Ok(response) => response,
-            Err(FriendlyCaptchaError::BackendError) => return Ok(()),
-            Err(e) => return Err(e),
-        };
-        let response = match Self::send_friendlycaptcha_token(payload).await {
-            Ok(response) => response,
-            Err(FriendlyCaptchaError::BackendError) => return Ok(()),
-            Err(e) => return Err(e),
-        };
-        self.process_friendlycaptcha_response(response).await?;
-        Ok(())
-    }
-
-    async fn build_friendlycaptcha_payload<'a>(
-        &'a self,
-        solution: &'a str,
-    ) -> Result<FriendlyCaptchaVerifyPayload<'a>, FriendlyCaptchaError> {
-        let data = match self
-            .friendlycaptcha_data
-            .get_or_try_init(
-                self.secrets_repository
-                    .get_secret(FRIENDLYCAPTCHA_DATA_NAME),
-            )
-            .await
-        {
-            Ok(data) => data,
-            Err(error) => {
-                warn!("Could not retrieve FriendlyCaptcha credentials {FRIENDLYCAPTCHA_DATA_NAME} from AWS secrets manager: {error}");
-                warn!("Letting request pass without verification.");
-                return Err(FriendlyCaptchaError::BackendError);
-            }
-        };
-
-        Ok(FriendlyCaptchaVerifyPayload {
-            solution,
-            sitekey: &data.sitekey,
-            secret: &data.secret,
-        })
-    }
-
-    async fn send_friendlycaptcha_token<'a>(
-        payload: FriendlyCaptchaVerifyPayload<'a>,
-    ) -> Result<ReqwestResponse, FriendlyCaptchaError> {
-        Ok(
-            match Client::new()
-                .post(Self::friendlycaptcha_verify_url().as_ref())
-                .json(&payload)
-                .send()
-                .await
-            {
-                Ok(response) => response,
-                Err(error) => {
-                    if let Some(status) = error.status() {
-                        if status.is_client_error() {
-                            return Err(FriendlyCaptchaError::ClientError(error));
-                        }
-                    }
-                    warn!("Error verifying FriendlyCaptcha solution: {error}");
-                    warn!("Letting request pass without verification.");
-                    return Err(FriendlyCaptchaError::BackendError);
-                }
-            },
-        )
-    }
-
-    fn friendlycaptcha_verify_url() -> Cow<'static, str> {
-        std::env::var("FRIENDLYCAPTCHA_VERIFY_URL")
-            .map(Cow::Owned)
-            .unwrap_or(FRIENDLYCAPTCHA_VERIFY_URL.into())
-    }
-
-    async fn process_friendlycaptcha_response(
-        &self,
-        response: ReqwestResponse,
-    ) -> Result<(), FriendlyCaptchaError> {
-        if response.status() == StatusCode::UNAUTHORIZED {
-            return Err(FriendlyCaptchaError::IncorrectSecret);
-        }
-        let response_body: FriendlyCaptchaResponse = match response.json().await {
-            Ok(body) => body,
-            Err(error) => {
-                warn!("Error fetching body from FriendlyCaptcha: {error}");
-                warn!("Letting request pass without verification.");
-                return Ok(());
-            }
-        };
-        if response_body.success {
-            Ok(())
-        } else if response_body.errors.iter().any(|e| e == "solution_invalid") {
-            Err(FriendlyCaptchaError::SolutionInvalid)
-        } else if response_body
-            .errors
-            .iter()
-            .any(|e| e == "solution_timeout_or_duplicate")
-        {
-            Err(FriendlyCaptchaError::SolutionTimeoutOrDuplicate)
-        } else {
-            Err(FriendlyCaptchaError::UnrecognizedError(
-                response_body.errors,
-            ))
-        }
     }
 
     async fn initialise_mailer(&self) -> Result<AsyncSmtpTransport<Tokio1Executor>, Error> {
@@ -356,28 +251,6 @@ struct ValidatedContactFormMessage<'a> {
     friendlycaptcha_token: &'a str,
 }
 
-#[derive(Deserialize, Clone)]
-struct FriendlyCaptchaData {
-    #[serde(rename = "FRIENDLYCAPTCHA_SITEKEY")]
-    sitekey: String,
-    #[serde(rename = "FRIENDLYCAPTCHA_SECRET")]
-    secret: String,
-}
-
-#[derive(Serialize)]
-struct FriendlyCaptchaVerifyPayload<'a> {
-    solution: &'a str,
-    secret: &'a str,
-    sitekey: &'a str,
-}
-
-#[derive(Deserialize)]
-struct FriendlyCaptchaResponse {
-    success: bool,
-    #[serde(default)]
-    errors: Vec<String>,
-}
-
 #[derive(Deserialize)]
 struct SmtpCredentials {
     #[serde(rename = "SMTP_USERNAME")]
@@ -443,77 +316,6 @@ impl std::fmt::Display for ContactFormError {
 impl std::error::Error for ContactFormError {}
 
 #[derive(Debug)]
-enum FriendlyCaptchaError {
-    ClientError(reqwest::Error),
-    IncorrectSecret,
-    SolutionInvalid,
-    SolutionTimeoutOrDuplicate,
-    UnrecognizedError(Vec<String>),
-    BackendError,
-}
-
-impl FriendlyCaptchaError {
-    fn into_contact_form_error(
-        self,
-        subject: String,
-        body: String,
-        language: String,
-    ) -> ContactFormError {
-        match self {
-            FriendlyCaptchaError::ClientError(error) => ContactFormError::InternalError {
-                description: format!("FriendlyCaptcha client error: {error}"),
-                subject,
-                body,
-                language,
-            },
-            FriendlyCaptchaError::IncorrectSecret => ContactFormError::InternalError {
-                description: "Incorrect FriendlyCaptcha secret".into(),
-                subject,
-                body,
-                language,
-            },
-            FriendlyCaptchaError::SolutionInvalid => {
-                ContactFormError::ClientError("Invalid FriendlyCaptcha solution".into())
-            }
-            FriendlyCaptchaError::SolutionTimeoutOrDuplicate => ContactFormError::ClientError(
-                "FriendlyCaptcha solution timeout or duplicate".into(),
-            ),
-            FriendlyCaptchaError::UnrecognizedError(errors) => ContactFormError::InternalError {
-                description: format!("FriendlyCaptcha error: {errors:?}"),
-                subject,
-                body,
-                language,
-            },
-            FriendlyCaptchaError::BackendError => ContactFormError::InternalError {
-                description: "FriendlyCaptcha backend error".into(),
-                subject,
-                body,
-                language,
-            },
-        }
-    }
-}
-
-impl std::fmt::Display for FriendlyCaptchaError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            FriendlyCaptchaError::ClientError(error) => write!(f, "Client error: {error}"),
-            FriendlyCaptchaError::IncorrectSecret => write!(f, "Incorrect secret"),
-            FriendlyCaptchaError::SolutionInvalid => write!(f, "Solution invalid"),
-            FriendlyCaptchaError::SolutionTimeoutOrDuplicate => {
-                write!(f, "Solution timeout or duplicate")
-            }
-            FriendlyCaptchaError::UnrecognizedError(errors) => {
-                write!(f, "Unrecognised error: {errors:?}")
-            }
-            FriendlyCaptchaError::BackendError => write!(f, "FriendlyCaptcha backend error"),
-        }
-    }
-}
-
-impl std::error::Error for FriendlyCaptchaError {}
-
-#[derive(Debug)]
 enum EnvironmentError {
     MissingSecret(&'static str),
 }
@@ -532,10 +334,11 @@ impl std::error::Error for EnvironmentError {}
 mod tests {
     use super::ContactFormMessageHandler;
     use crate::{
+        friendlycaptcha::FRIENDLYCAPTCHA_DATA_NAME,
         secrets::test_support::{
             FakeSecretRepsitory, FAKE_FRIENDLYCAPTCHA_SECRET, FAKE_FRIENDLYCAPTCHA_SITEKEY,
         },
-        FRIENDLYCAPTCHA_DATA_NAME, SMTP_CREDENTIALS_NAME,
+        SMTP_CREDENTIALS_NAME,
     };
     use googletest::prelude::*;
     use lambda_http::{http::HeaderValue, Body, Request};
