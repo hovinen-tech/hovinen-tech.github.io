@@ -5,7 +5,9 @@ mod secrets;
 use async_once_cell::OnceCell;
 use error_page::render_error_page;
 use friendlycaptcha::FriendlyCaptchaVerifier;
-use lambda_http::{run, service_fn, Body, Error, Request, RequestPayloadExt, Response};
+use lambda_http::{
+    http::StatusCode, run, service_fn, Body, Error, Request, RequestPayloadExt, Response,
+};
 use lazy_static::lazy_static;
 use lettre::{
     message::{header::ContentType, Mailbox},
@@ -71,7 +73,7 @@ impl<SecretRepositoryT: SecretRepository> ContactFormMessageHandler<SecretReposi
         };
         match self.process_message(message).await {
             Ok(language) => Ok(Response::builder()
-                .status(303)
+                .status(StatusCode::SEE_OTHER)
                 .header("Location", Self::create_success_url(language.as_str()))
                 .body("".into())
                 .unwrap()),
@@ -290,12 +292,12 @@ impl ContactFormError {
                 language,
                 ..
             } => Response::builder()
-                .status(500)
+                .status(StatusCode::INTERNAL_SERVER_ERROR)
                 .header("Content-Type", "text/html; charset=utf-8")
                 .body(render_error_page(subject.as_str(), body.as_str(), language.as_str()).into())
                 .unwrap(),
             ContactFormError::ClientError(description) => Response::builder()
-                .status(400)
+                .status(StatusCode::BAD_REQUEST)
                 .body(format!("Client error: {description}").into())
                 .unwrap(),
         }
