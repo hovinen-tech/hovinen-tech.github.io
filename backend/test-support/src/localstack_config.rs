@@ -1,16 +1,13 @@
-use std::process::Command;
+use std::{process::Command, sync::OnceLock};
 
 use aws_config::{BehaviorVersion, SdkConfig};
-use lazy_static::lazy_static;
 use log::info;
 use serde::Deserialize;
 use testcontainers::{clients::Cli, core::WaitFor, Container, GenericImage, RunnableImage};
 
 pub const LOCALSTACK_PORT: u16 = 4566;
 
-lazy_static! {
-    static ref DOCKER: Cli = Cli::default();
-}
+static DOCKER: OnceLock<Cli> = OnceLock::new();
 
 pub struct LocalStackConfig {
     pub aws_host_from_subject: String,
@@ -74,7 +71,7 @@ impl LocalStackConfig {
 
     fn run_localstack_returning_endpoint_url() -> (String, String, Container<'static, GenericImage>)
     {
-        let container = DOCKER.run(
+        let container = DOCKER.get_or_init(|| Cli::default()).run(
             RunnableImage::from(
                 GenericImage::new("localstack/localstack", "2.3.2")
                     .with_volume("/var/run/docker.sock", "/var/run/docker.sock")

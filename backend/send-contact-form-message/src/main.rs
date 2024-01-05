@@ -8,7 +8,6 @@ use friendlycaptcha::FriendlyCaptchaVerifier;
 use lambda_http::{
     http::StatusCode, run, service_fn, Body, Error, Request, RequestPayloadExt, Response,
 };
-use lazy_static::lazy_static;
 use lettre::{
     message::{header::ContentType, Mailbox},
     transport::smtp::authentication::{Credentials, Mechanism},
@@ -16,18 +15,19 @@ use lettre::{
 };
 use secrets::{AwsSecretsManagerSecretRepository, SecretRepository};
 use serde::Deserialize;
-use std::{borrow::Cow, fmt::Display};
+use std::{borrow::Cow, fmt::Display, sync::OnceLock};
 use tracing::error;
 
-lazy_static! {
-    static ref FROM_ADDRESS: Mailbox = "Web contact form <noreply@hovinen.tech>".parse().unwrap();
-    static ref TO_ADDRESS: Mailbox = "Bradford Hovinen <hovinen@hovinen.tech>".parse().unwrap();
-}
+const FROM_ADDRESS: &str = "Web contact form <noreply@hovinen.tech>";
+const TO_ADDRESS: &str = "Bradford Hovinen <hovinen@hovinen.tech>";
 
 const SMTP_URL: &str = "smtps://email-smtp.eu-north-1.amazonaws.com";
 const SMTP_CREDENTIALS_NAME: &str = "smtp-ses-credentials";
 
 const BASE_HOST: &str = "hovinen.tech";
+
+static FROM_MAILBOX: OnceLock<Mailbox> = OnceLock::new();
+static TO_MAILBOX: OnceLock<Mailbox> = OnceLock::new();
 
 #[tokio::main]
 async fn main() -> Result<(), Error> {
@@ -127,9 +127,15 @@ impl<SecretRepositoryT: SecretRepository> ContactFormMessageHandler<SecretReposi
             )));
         };
         Ok(Message::builder()
-            .from(FROM_ADDRESS.clone())
+            .from(
+                FROM_MAILBOX
+                    .get_or_init(|| FROM_ADDRESS.parse().unwrap())
+                    .clone(),
+            )
             .reply_to(reply_to_email)
-            .to(TO_ADDRESS.clone())
+            .to(TO_MAILBOX
+                .get_or_init(|| TO_ADDRESS.parse().unwrap())
+                .clone())
             .subject(message.subject)
             .header(ContentType::TEXT_PLAIN)
             .body(message.body.to_string())
@@ -344,10 +350,9 @@ mod tests {
     };
     use googletest::prelude::*;
     use lambda_http::{http::HeaderValue, Body, Request};
-    use lazy_static::lazy_static;
     use serde::Serialize;
     use serial_test::serial;
-    use std::time::Duration;
+    use std::{sync::OnceLock, time::Duration};
     use test_support::{
         fake_friendlycaptcha::FakeFriendlyCaptcha,
         fake_smtp::{start_poisoned_smtp_server, FakeSmtpServer, POISONED_SMTP_PORT, SMTP_PORT},
@@ -358,10 +363,6 @@ mod tests {
     type ContactFormMessageHandlerForTesting = ContactFormMessageHandler<FakeSecretRepsitory>;
 
     const CORRECT_CAPTCHA_SOLUTION: &str = "correct captcha solution";
-
-    lazy_static! {
-        static ref FAKE_SMTP: FakeSmtpServer = FakeSmtpServer::new();
-    }
 
     #[tokio::test]
     #[serial]
@@ -415,7 +416,7 @@ mod tests {
             points_to(matches_pattern!(Body::Text(eq(""))))
         );
         expect_that!(
-            timeout(Duration::from_secs(1), FAKE_SMTP.last_mail_content()).await,
+            timeout(Duration::from_secs(1), fake_smtp().last_mail_content()).await,
             ok(ok(anything()))
         )
     }
@@ -475,7 +476,7 @@ mod tests {
             points_to(matches_pattern!(Body::Text(eq(""))))
         );
         expect_that!(
-            timeout(Duration::from_secs(1), FAKE_SMTP.last_mail_content()).await,
+            timeout(Duration::from_secs(1), fake_smtp().last_mail_content()).await,
             ok(ok(anything()))
         );
     }
@@ -495,7 +496,7 @@ mod tests {
         subject.handle(event).await.unwrap();
 
         expect_that!(
-            timeout(Duration::from_secs(1), FAKE_SMTP.last_mail_content()).await,
+            timeout(Duration::from_secs(1), fake_smtp().last_mail_content()).await,
             err(anything())
         );
     }
@@ -618,7 +619,7 @@ mod tests {
             points_to(matches_pattern!(Body::Text(eq(""))))
         );
         expect_that!(
-            timeout(Duration::from_secs(1), FAKE_SMTP.last_mail_content()).await,
+            timeout(Duration::from_secs(1), fake_smtp().last_mail_content()).await,
             ok(ok(anything()))
         )
     }
@@ -673,7 +674,7 @@ mod tests {
         subject.handle(event).await.unwrap();
 
         expect_that!(
-            timeout(Duration::from_secs(1), FAKE_SMTP.last_mail_content()).await,
+            timeout(Duration::from_secs(1), fake_smtp().last_mail_content()).await,
             ok(ok(anything()))
         )
     }
@@ -707,8 +708,8 @@ mod tests {
 
     async fn init() {
         setup_environment();
-        FAKE_SMTP.start();
-        FAKE_SMTP.flush().await;
+        fake_smtp().start();
+        fake_smtp().flush().await;
     }
 
     fn setup_environment() {
@@ -798,5 +799,10 @@ mod tests {
                 std::env::remove_var(self.0);
             }
         }
+    }
+
+    fn fake_smtp() -> &'static FakeSmtpServer {
+        static FAKE_SMTP: OnceLock<FakeSmtpServer> = OnceLock::new();
+        FAKE_SMTP.get_or_init(|| FakeSmtpServer::new())
     }
 }
