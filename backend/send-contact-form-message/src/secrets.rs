@@ -1,11 +1,11 @@
 use crate::EnvironmentError;
-use async_trait::async_trait;
 use aws_config::BehaviorVersion;
 use serde::de::DeserializeOwned;
 
-#[async_trait]
 pub trait SecretRepository {
-    async fn open() -> Self;
+    async fn open() -> Self
+    where
+        Self: Sized;
 
     async fn get_secret<T: DeserializeOwned>(
         &self,
@@ -16,7 +16,6 @@ pub trait SecretRepository {
 #[derive(Clone)]
 pub struct AwsSecretsManagerSecretRepository(aws_sdk_secretsmanager::Client);
 
-#[async_trait]
 impl SecretRepository for AwsSecretsManagerSecretRepository {
     async fn open() -> Self {
         let mut loader = aws_config::defaults(BehaviorVersion::latest()).region("eu-north-1");
@@ -44,7 +43,6 @@ impl SecretRepository for AwsSecretsManagerSecretRepository {
 pub mod test_support {
     use super::SecretRepository;
     use crate::{friendlycaptcha::FRIENDLYCAPTCHA_DATA_NAME, SMTP_CREDENTIALS_NAME};
-    use async_trait::async_trait;
     use aws_sdk_secretsmanager::types::error::ResourceNotFoundException;
     use serde::de::DeserializeOwned;
     use std::collections::HashMap;
@@ -65,7 +63,6 @@ pub mod test_support {
         }
     }
 
-    #[async_trait]
     impl SecretRepository for FakeSecretRepsitory {
         async fn open() -> Self {
             Self(HashMap::from([
