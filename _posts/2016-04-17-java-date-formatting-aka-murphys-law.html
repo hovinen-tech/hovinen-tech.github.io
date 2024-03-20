@@ -1,0 +1,57 @@
+---
+layout: post
+title: Java date formatting aka Murphy's Law
+date: 2016-04-17 19:48:11.000000000 +02:00
+type: post
+parent_id: '0'
+published: true
+password: ''
+status: publish
+categories: []
+tags: []
+meta:
+  _rest_api_published: '1'
+  _rest_api_client_id: "-1"
+  _publicize_job_id: '21884364808'
+  _publicize_done_external: a:1:{s:7:"twitter";a:1:{i:12209128;s:59:"https://twitter.com/gruebelinchen/status/721787363890831360";}}
+  _publicize_done_12172494: '1'
+  _wpas_done_12209128: '1'
+  publicize_twitter_user: gruebelinchen
+author:
+  login: hovinen
+  email: hovinen@gmail.com
+  display_name: Bradford Hovinen
+  first_name: Bradford
+  last_name: Hovinen
+permalink: "/2016/04/17/java-date-formatting-aka-murphys-law/"
+---
+<p>Here's a lesson in Murphy's Law (along with a PSA).</p>
+
+<p>Last Thursday I held a <a href="http://www.meetup.com/Software-Craftsmanship-Meetup-Softwerkskammer-Munchen/events/229967930/">session</a> at the <a href="https://www.softwerkskammer.org/groups/muenchen">Softwerkskammer München</a> on mutation testing. This included an exercise in which participants took a program with 100% code coverage through tests and tried to find changes in the production code which broke the tests.</p>
+<p>This doesn't work so well when the tests are already broken, as they were for at least three of the participants.</p>
+<p>Of course I had made sure that all tests run smoothly beforehand. They were all simple unit tests, not depending on any exotic machinery or external systems.</p>
+<p>So what happened?</p>
+<p>The failing test in question was (roughly) of the following form:</p>
+<pre>result = process(..., LocalDate.of(2015, 12, 31));
+assertThat(result.getDateAsString(), is(equalTo("31-12-2015")));</pre>
+<p>Nothing special here: the date is formatted to a string and put in a data structure. But on some (but not all) systems, the test failed with the message that the string in question was "2016-12-31".</p>
+<p>Huh?</p>
+<p>It turned out, after a bit of frantic investigation, that the systems on which the code worked properly were set to the German locale, while those on which the code failed were in the English locale.</p>
+<p>Why does this matter? Let's take a look at the formatting code:</p>
+<pre>getDate().format(new DateTimeFormatterBuilder().appendPattern("d-M-Y").toFormatter())</pre>
+<p>Turns out the problem was with the date format pattern. Looking at the <a href="https://docs.oracle.com/javase/8/docs/api/java/time/format/DateTimeFormatterBuilder.html#appendPattern-java.lang.String-">Javadoc</a> for DateTimeFormatterBuilder.appendPattern:</p>
+<pre>...
+y       year-of-era                 year              2004; 04
+...
+Y       week-based-year             year              1996; 96
+...</pre>
+<p>So... the capital "Y" is not actually the year, but the "week-based year." In Germany, the week begins on Monday, so the week-based year of 31 December 2015 is 2015. In English-speaking countries, the week begins on a Sunday, so the year is 2016.</p>
+<p>Ugh.</p>
+<p>The fix is easy: just replace "Y" in the format string with "y". Given that this kind of bug leads to wrong results just a few days a year, and then only in some locales, I can't imagine how many programs got it wrong.</p>
+<p>Some takeaways:</p>
+<ul>
+<li>This is, frankly, bad API design: "Y" and "y" are far too easy to confuse, especially given that they differ on only a few inputs.</li>
+<li>Make sure to check the format strings of your programs for this error!</li>
+<li>When testing any code with dates, make sure to include edge cases, like the last day of the year, and to test with different locales.</li>
+<li>A program which works for you may fail for others for the strangest reasons. Murphy's Law holds.</li>
+</ul>

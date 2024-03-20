@@ -1,0 +1,118 @@
+---
+layout: post
+title: Technical design as an hourglass
+date: 2021-01-23 15:40:56.000000000 +01:00
+type: post
+parent_id: '0'
+published: true
+password: ''
+status: publish
+categories: []
+tags: []
+meta:
+  _last_editor_used_jetpack: block-editor
+  _coblocks_attr: ''
+  _coblocks_dimensions: ''
+  _coblocks_responsive_height: ''
+  _coblocks_accordion_ie_support: ''
+  amp_status: enabled
+  spay_email: ''
+  _wpas_is_tweetstorm: ''
+  _wpas_done_12209128: '1'
+  _publicize_job_id: '53810237220'
+  _publicize_done_external: a:1:{s:7:"twitter";a:1:{i:12209128;s:60:"https://twitter.com/gruebelinchen/status/1353004809562030085";}}
+  _publicize_done_12172494: '1'
+  publicize_twitter_user: gruebelinchen
+  timeline_notification: '1611416460'
+  wordads_ufa: s:wpcom-ufa-v3-beta:1686386418
+author:
+  login: hovinen
+  email: hovinen@gmail.com
+  display_name: Bradford Hovinen
+  first_name: Bradford
+  last_name: Hovinen
+permalink: "/2021/01/23/technical-design-as-an-hourglass/"
+---
+<p>A few years ago my team received a bug report in our product whose solution required some technical design. A teammate felt it would be a great opportunity to try out the principle of "design as a team" and suggested that the whole team get together to work on the problem. So we did.</p>
+
+<p>The exercise was a complete waste of time, except to show that this notion of "design as a team" is pure fantasy.</p>
+
+<p>Some of the team members were not interested in the problem. They barely said a word in the meeting and could really have better used the time working on their own tasks.</p>
+
+<p>Another team member insisted that we use <em>his</em> idea to solve the problem. We didn't: it would have broken some key design principles in the product while providing no clear benefit over the alternatives. But he was so unhappy that we didn't go with it that he spent the next couple of months complaining about this.</p>
+
+<p>In the end, one team member designed and implemented a solution, not making use of any outcomes from the aforementioned team meeting. The implementation took about half an hour, completely solved the problem, and resulted in zero bug reports or complaints from users or stakeholders. The team meeting didn't contribute anything to the successful design in the end.</p>
+
+<h2>How (not) to involve the team in design</h2>
+
+<p>But isn't <em>design as a team</em> somehow a gold standard of collaboration? Is that not how we <em>want</em> to be building products nowadays?</p>
+
+<p>This seemingly modern notion has an old name: <em>design by committee</em>. It's <a href="https://en.wikipedia.org/wiki/Design_by_committee">well-understood</a> not to work. When one brings the whole team together to do design, two things tend to happen:</p>
+
+<ul>
+<li>Some of the team members, those with less stake in the design or its outcome, become disengaged and don't really participate. The meeting becomes a waste of their time. </li>
+<li>Some team members try to influence the design just to have their "fingerprints" on it (whether they are aware of this tendency or not). The resulting design becomes a muddled compromise of all the different people trying to take influence on the design.</li>
+</ul>
+
+<p>One of the most important factors in the success of any technical design is <em><a href="https://wiki.c2.com/?ConceptualIntegrity">conceptual integrity</a></em>. Conceptually integral designs don't arise from muddled compromise but from the focused work of one or two designers (see also <a href="https://www.pearson.com/us/higher-education/program/Brooks-Design-of-Design-The-Essays-from-a-Computer-Scientist/PGM161423.html">The Design of Design</a> by Frederick Brooks, chapter 6).</p>
+
+<h2>Beware the ivory tower architect</h2>
+
+<p>I would be remiss not to mention another well-known anti-pattern, the <em>ivory tower architect</em>.</p>
+
+<p>I was once placed in a task force to solve some urgent architectural problems in a product. I expected that it would be <em>designing</em> the solution. I was rather surprised when, on the first day, the task force manager handed us a technical design he had created and told us that we would be implementing it.</p>
+
+<p>I didn't stay on the task force terribly long, but learnt later that the project utterly failed after several months. The entire product the team had developed was thrown away once it became clear that it would never successfully perform its function.</p>
+
+<p>One key problem was that the manager played no role in the <em>implementation</em>. The engineers, on the other hand, had no feeling of <em>ownership</em> in the design, since it had just been handed to them from someone else. They felt like assembly line workers, just carrying out the work packets handed to them from above.</p>
+<p><!-- wp:heading {"level":1} --></p>
+<h2>Technical design in a team done right</h2>
+<p><!-- /wp:heading --></p>
+
+<p>Engineering team is producing the most value when it is solving deep technical problems, which need deep technical design. How collaborative should that design be? How does the team create effective technical design while fostering a sense of shared ownership? To see the answer, I'm going to outline a design process consisting of several phases and show when different people can be involved, and how.</p>
+
+<p>Step zero in a major technical design, as with any large project, should be <em>creating alignment</em>. It's critical that the key stakeholders are onboard with the project and the need for the investment. How much alignment one needs to create depends on the amount of required investment and, crucially, the required involvement from <a href="https://gruebelinchen.wordpress.com/2021/01/03/cross-team-mandates/">other teams</a>. In this step, one identifies a <em>chief designer</em> (modern language: <em>tech lead</em>) who takes primary ownership and responsibility for the design and implementation.</p>
+
+<p>Broadly speaking, the design then goes through three phases: <em>discovery</em>, <em>design</em>, and <em>feedback</em>.</p>
+
+<h3>Discovery</h3>
+
+<p>The <em>discovery</em> phase is marked by the chief designer collecting information as broadly as possible to flow into the design. They speak to engineers and stakeholders, product managers and UX designers. They find out about expectations, constraints, and possible <a href="https://gruebelinchen.wordpress.com/2020/12/29/on-time-bombs-tar-pits-and-booby-traps/">booby traps</a>. Constraints include in particular any aspects of the architecture or design of the surrounding system which may block some alternatives. This phase is also a good point to collect from a broad range of colleagues initial ideas on how to proceed.</p>
+
+<p>There are lots of formats to proceed with this. Some might informally chat with different parties and collect information. Others might organize a formal <a href="https://designsprint.org/">design sprint</a>. The most important point is that this phase is <em>expansionary</em>: its success is measured on how much useful information and how many ideas are collected.</p>
+
+<h3>Design</h3>
+
+<p>In the <em>design</em> phase, the designer, or a group of <em>at most two</em> designers, uses the information and ideas collected to work out and document a detailed concept to solve the problem. This phase is <em>consolidatory</em>: ideas are discarded and merged while collected information is categorized.</p>
+
+<p>This phase is critical to avoiding design by committee. The restriction to at most two designers enables conceptual integrity. Equally critical is that the designers be <em>involved in the implementation</em> so that they have a real stake in the success of the design.</p>
+
+<p>The design need not work out every detail of every aspect of the solution. Parts of it can be carved out to be handed off to more junior designers (see below). But it should be clear that every aspect <em>has</em> a solution. One omitted detail shouldn't be allowed to bring down the whole design. If that is in doubt, then the detail should be covered in the design.</p>
+
+<p>The documented design must include a discussion of <em>discarded alternatives</em>. Why was a particular alternative not picked? Was the designer unaware of it or was there a good reason for this? This information is of particular importance when collecting feedback in the third phase.</p>
+
+<h3>Feedback</h3>
+
+<p>The designers share their concept with a larger round -- including other team members and stakeholders -- in the <em>feedback</em> phase. Here it is critical to get as wide a range of opinions as possible. Some may point out missed constraints, others missed alternatives. The earlier one knows that the design won't actually solve the problem or has some severe defect, the better.</p>
+
+<p>Depending on the feedback, it may be necessary to go back to revisit the previous two phases. The design process is iterative in that sense. However, the designer is not <em>obligated</em> to incorporate all the feedback they receive. Should the design be untenable -- maybe it violates an unforeseen constraint -- then the designer has little choice but to revise it or throw it out. But, when it comes to personal preference, it is up to their own judgement how to proceed.</p>
+
+<h3>An hourglass</h3>
+
+<p>Putting these phases together, one sees an hourglass of collaboration: the designer starts by involving a lot of people in discovery, then work alone or in a pair, and finally collects feedback from a wide group again. Many colleagues may be involved with the design by providing initial input and final feedback. But the ownership and main responsibility for working out a complete design lie with one or two key designers.</p>
+
+<h3>Hierarchical design</h3>
+
+<p>A team with a few relatively senior engineers is likely eager to be involved in the design process. This can't happen if a single tech lead monopolizes the design work.</p>
+
+<p>To involve the whole team, the tech lead builds an overarching concept for the problem and leaves parts of that design not fully specified. For example, the tech lead might come up with a concept for a new service and how that service would interact with other components in production. But they might not design the database schema or the data migration process, leaving those parts for other engineers to own.</p>
+
+<p>The tech lead should leave the engineers a lot of leeway in making their own decisions, even if they consider a decision to be a mistake. It's important that engineers have the opportunity to make mistakes and learn from them. Only if the design is untenable -- and the designer unwilling to acknowledge that -- should the tech lead put their foot down and forbid it.</p>
+
+<p>Engineers must also be expected to deliver on their designs. Tech leads should hold their engineers' feet to the fire, insisting on clear commitments about deliverables. If an engineer is dragging their feet on a design, the tech lead may have to take away responsibility for it.</p>
+
+<p>Important is that the <em>whole team</em>, including the tech lead, be involved with the implementation of these individual pieces. This avoids the creation of knowledge silos within the team.</p>
+
+<h2>Conclusion</h2>
+
+<p>As a tech lead or a designer, don't think you need to involve your whole team or organisation in a design effort. If more people on your team want real responsibility, parcel out parts of the design for them, but only if they will<em> really</em> be involved with the implementation of said design. Otherwise, they should be satisfied to provide ideas and feedback.</p>

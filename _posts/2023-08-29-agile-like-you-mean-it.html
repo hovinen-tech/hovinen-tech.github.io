@@ -1,0 +1,85 @@
+---
+layout: post
+title: Agile like you mean it?
+date: 2023-08-29 11:24:51.000000000 +02:00
+type: post
+parent_id: '0'
+published: true
+password: ''
+status: publish
+categories: []
+tags: []
+meta:
+  _last_editor_used_jetpack: block-editor
+  footnotes: ''
+  wordads_ufa: s:wpcom-ufa-v4:1693308490
+  timeline_notification: '1693308293'
+  _publicize_job_id: '87081029230'
+author:
+  login: hovinen
+  email: hovinen@gmail.com
+  display_name: Bradford Hovinen
+  first_name: Bradford
+  last_name: Hovinen
+permalink: "/2023/08/29/agile-like-you-mean-it/"
+---
+
+<p>Recently I watched a <a href="https://youtu.be/F42A3R28WMU?si=MpN_dkKLUYdrND6L">talk</a> by the author and consultant <a href="https://holub.com/">Allen Holub</a>. He describes how what passes for "agile" in today's organisations has nothing to do with the original thinking behind the concept. While I agree with much of his criticism, I find one key aspect deeply unsatisfactory, and worry that it could be counterproductive, even dangerous, if applied in practice.</p>
+
+<h2 class="wp-block-heading">Holub's ideal vision</h2>
+
+<p>There are a lot of interesting ideas to digest in there and I do recommend listening to what he has to say. Scrum creates suffocating process and locks developers for hours in often pointless meetings and rituals. SaFE is even worse -- it's probably the polar opposite of true agility. OKRs often devolve into top-down task assignment. And I particularly appreciate his rejection of story point estimates in favour of just counting stories.</p>
+
+<p>Allen Holub advocates making small, incremental changes, each intended to provide customer value, and getting customer feedback rapidly. He claims that this should happen on the scale of hours or days, not weeks or months. Every change should be in the service of the needs of the customer. He considers this to be the core of agile software development.</p>
+
+<p>Of course, software does need to be refactored over time, and he is well aware of that. However, he feels that this should happen in the context of these incremental changes -- "on the side," one might say. This is similar to what Robert C. Martin writes in his book <em>Clean Agile</em>:</p>
+
+<blockquote class="wp-block-quote">
+<p>We do not create a project specifically to change the design. We do not reserve time in the schedule for such large refactorings. Instead, we migrate the code one small step at a time, while continuing to add new features during the normal Agile cycle. (p. 125)</p>
+</blockquote>
+
+<p>So it seems to be a shared perspective among some of the original thought leaders behind Agile.</p>
+
+<h2 class="wp-block-heading">My story</h2>
+
+<p>At some point a few years ago, I was working for a large, reputable company with a well-regarded engineering organisation. A product was dropped into my lap and I suddenly had the responsibility to keep it running and make improvements to it. It was poorly designed and engineered, and its product story was a mess. But it was business critical.</p>
+
+<p>Despite that, the department showed no interest in investing in it. And it <em>desperately needed</em> investment:</p>
+<ul>
+<li>It couldn't scale with the data volumes it had to process. If we had done nothing, critical processes would have soon just stopped working.</li>
+<li>It depended on a critical way on other systems which were deprecated and marked for turndown. Had we not migrated the product away from these, the entire product would have stopped working.</li>
+<li>It had serious bugs we could not fix due to fundamental problems in the architecture and data model.</li>
+<li>Other bugs and customer issues took weeks to investigate and weeks more to fix. This was not just due to messy code, but to a failed architecture which hindered writing new tests and reasoning about the product's behaviour.</li>
+<li>Finally, there were unmet customer needs which were just piling up.</li>
+</ul>
+
+<p>It took a herculean effort to clean up the mess. Taken together, the work amounted to an (in place) total rewrite of the product. The technical debt was too entrenched to fix "on the side" as we were delivering features. It needed real investment and a real strategy to tackle. The key migrations we needed to make were not customer-visible, so delivering them incrementally and getting customer feedback was impossible. One might say it was a kind of <em>architectural debt</em>.</p>
+
+<p>Probably 90% of of the team's capacity over the time of my tenure went to dealing with the architectural debt and its consequences. How could we have approached this situation whilst being "agile" as Holub and others define the term?</p>
+
+<p>The idea of incremental changes, all bringing customer value, sounds great <em>in theory</em>: one gets extremely fast feedback and can adjust to changing needs quickly. But consider what this requires:</p>
+
+<ul>
+<li>The entire engineering organisation has the right balance of experienced and inexperienced software engineers.</li>
+<li>These teams are professionally superb and do not succumb to pressure to deliver products with subpar quality.</li>
+<li>This has been true <em>for the whole history of the organisation</em>, or at least for the whole lifetime of all products still in active development.</li>
+</ul>
+
+<p>And even <em>if</em> all of this is true, it still may not be enough. Requirements change unpredictably, and one can find oneself with a business-critical product which has been designed into a corner.</p>
+
+<p>Taking Holub at his word, the way were worked through my tenure was <strong>not agile</strong>. One therefore might be led to think that one should therefore <em>not</em> tackle architectural debt. Lacking a way to ram this type of work into the agile mold, one may conclude that it were not worth doing. But that thinking is naive and dangerous. At best, the software will rot. In our case, it would have stopped working altogether, completely on its own, after a few months!</p>
+
+<p>More generally, when I look back at my career, the vast majority of my capacity has been spent on large, multiquarter or multiyear programmes which only start delivering real value to the customer after a lot of investment has gone in. They may not require every detail to be designed and specified up front, but they require <em>some</em> up front design, planning, and strategy. They don't need 100% of developer resources, but they need <em>some</em> dedicated allocation of resources. Cases where we could realistically have delivered value incrementally were mostly quite trivial: fix a UI bug, add a checkbox here, change this colour and so on.</p>
+
+<p>I've read several works of the thought leaders in Agile and none seem to have a satisfying answer for this problem. Their mantra is, "just do everything right, be professional, and your problems will go away!"</p>
+
+<h2 class="wp-block-heading">Conclusion</h2>
+
+<p>So, what is their answer? From what I have read, I'm driven to one of two conclusions:</p>
+
+<ul>
+<li>Don't work on such products as described above. Let them be someone else's problem. But this feels really unsatisfactory: the work still needs to be done. Much of the software development work which needs to be done just doesn't fit in the agile box as defined by Nolub and others, and most of what does is the kind of stuff a recent university graduate could easily handle.</li>
+<li>Maybe not everything has to be "agile". Some projects just can't be agile, and that's okay. But, if it's not agile, then what? What's a viable approach for programmes whose value realistically cannot be delivered in increments every few hours or days?</li>
+</ul>
+
+<p>In my experience, what Holub et al. call "agile" can only function for a relatively small set of idealised real-world situations. In practice, most engineering programmes require some upfront planning and strategy, and the customer might not be able to see and appreciate the work being done for much of the development process. That's just reality. Our software development mindset -- whether agile or not -- has to be able to handle it. Just as with Scrum and SaFE, I worry that the appeal of calling one's approach "agile" will lead teams to exactly the opposite.</p>

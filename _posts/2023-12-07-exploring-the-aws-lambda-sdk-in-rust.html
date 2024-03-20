@@ -1,0 +1,213 @@
+---
+layout: post
+title: Exploring the AWS Lambda SDK in Rust
+date: 2023-12-07 15:39:18.000000000 +01:00
+type: post
+parent_id: '0'
+published: true
+password: ''
+status: publish
+categories: []
+tags:
+- aws
+- lambda
+- Rust
+- testing
+meta:
+  _last_editor_used_jetpack: block-editor
+  wordads_ufa: s:wpcom-ufa-v4:1701963883
+  reader_suggested_tags: '["Technology","Virtualization","Information Technology Careers","Tech
+    Careers","CICD","Android","Jenkins"]'
+  firehose_sent: '1701963560'
+  wpcom_is_first_post: '1'
+  timeline_notification: '1701963561'
+  _publicize_job_id: '90078311137'
+author:
+  login: hovinen
+  email: hovinen@gmail.com
+  display_name: Bradford Hovinen
+  first_name: Bradford
+  last_name: Hovinen
+permalink: "/2023/12/07/exploring-the-aws-lambda-sdk-in-rust/"
+---
+<p>Recently the general availability of the <a href="https://aws.amazon.com/sdk-for-rust/">AWS SDK for Rust</a> was <a href="https://aws.amazon.com/blogs/developer/announcing-general-availability-of-the-aws-sdk-for-rust/">announced</a>. I thought this might be a good occasion to write about my recent experiences writing and testing with AWS Lambda and Rust.</p>
+<!--more-->
+
+<p>When I started my freelancing business, I set up a <a href="http://hovinen.tech">website</a> with a contact form. I looked around at existing solutions, but couldn't find anything which quite ticks all the boxes. So, I decided to write my own backend.</p>
+
+<p>The job of the backend is pretty simple: get the data from the form, pack them in an email, and send that email to a specific destination. It also needed a way to protect from bots, such as a captcha.</p>
+
+<p>For the backend itself, I chose <a href="https://aws.amazon.com/lambda/">AWS Lambda</a>. This makes sense given the low traffic volume I expect. The <a href="https://aws.amazon.com/api-gateway/">AWS API Gateway</a> exposes the backend as an HTTP endpoint. The lambda sends emails via SMTP using the <a href="https://aws.amazon.com/ses/">AWS Simple Email Service</a>. I use a (privacy- and accessibility-friendly) captcha solution called <a href="https://friendlycaptcha.com/">FriendlyCaptcha</a>. Credentials for both of these are stored in the <a href="https://aws.amazon.com/secrets-manager/">AWS Secrets Manager</a>.</p>
+
+<figure class="wp-block-image aligncenter size-large"><a href="https://gruebelinchen.files.wordpress.com/2023/12/mail-backend-architecture.drawio.png"><img src="{{ site.baseurl }}/assets/2023/12/mail-backend-architecture.drawio.png?w=481" alt="" class="wp-image-771" /></a></figure>
+
+<h2 class="wp-block-heading">Writing a Lambda in Rust</h2>
+
+<p>I decided to write the lambda in Rust to see how the AWS Rust SDK works. It runs as an ordinary binary which can process any number of lambda events. It has some modest boilerplate to call into the AWS SDK to set up a listener for lambda events and invoke a handler on each event. It runs in the <a href="https://tokio.rs/">Tokio</a> runtime and uses non-blocking variants of all APIs, so each running instance could actually handle a lot of traffic if it needed to.</p>
+
+<pre class="wp-block-syntaxhighlighter-code">use lambda_http::{
+    http::StatusCode, run, service_fn, Body, Error, Request, Response
+};
+
+#[tokio::main]
+async fn main() -&gt; Result&lt;(), Error&gt; {
+    let handler = ContactFormMessageHandler::new().await;
+    run(service_fn(|event| handler.handle(event))).await
+}
+
+struct ContactFormMessageHandler {...}
+
+impl ContactFormMessageHandler {
+    async fn handle(&amp;self, event: Request) -&gt; Result&lt;Response&lt;Body&gt;, Error&gt; {...}
+}</pre>
+
+<p>The request and response are essentially the HTTP request and response received from, respectively sent to the user agent. The Lambda SDK provides facilities for parsing the payload and constructing the response:</p>
+
+<pre class="wp-block-syntaxhighlighter-code">#[derive(Deserialize)]
+struct ContactFormMessage {
+    name: String,
+    email: String,
+    subject: String,
+    body: String,
+}
+
+async fn handle(&amp;self, event: Request) -&gt; Result&lt;Response&lt;Body&gt;, Error&gt; {
+    let Some(message: ContactFormMessage) = event.payload()? else {
+        return Ok(Response::builder()
+            .status(StatusCode::BAD_REQUEST)
+            .body("Could not extract message payload".into())
+            .unwrap());
+    };
+    match self.process_message(message).await {
+        Ok(_) =&gt; Ok(Response::builder()
+            .status(StatusCode::OK)
+            .body("Message sent".into())
+            .unwrap()),
+        Err(_) =&gt; Ok(Response::builder()
+            .status(StatusCode::INTERNAL_SERVER_ERROR)
+            .body("Could not send message".into())
+            .unwrap()),
+    }
+}
+
+async fn process_message(message: ContactFormMessage) -&gt; Result&lt;(), Error&gt; {...}</pre>
+
+<p>This Rust program is compiled to a binary, packed into a Docker image, and uploaded to AWS. The <a href="https://www.cargo-lambda.info/">Cargo Lambda tool</a> builds and deploys the lambda automatically. AWS Lambda then launches instances of the binary to handle incoming events. Each instance typically runs for a short time, shutting down on its own if it is no longer needed to serve traffic.</p>
+
+
+<h2 class="wp-block-heading">Cross-compiling for arm64</h2>
+
+<p>AWS Lambda allows running functions on either the x86-64 architecture or arm64. The latter has somewhat lower costs, so I decided to target it to see how well that goes. This means compiling the lambda for the arm64 architecture. Nominally this requires just passing the flag <code>--arm64</code> to the <code>cargo lambda build</code> command.</p>
+
+<p>There is one twist, however. By default, the <a href="https://crates.io/crates/lettre">SMTP</a> and <a href="https://crates.io/crates/reqwest">HTTP</a> clients my lambda uses rely on OpenSSL for TLS support. This means that to cross-compile the lambda, one must cross-compile the OpenSSL C++ library itself. This would mean going down a rabbit hole.</p>
+
+<p>Fortunately, this is easily solved by configuring the SMTP and HTTP dependencies to use <a href="https://crates.io/crates/rustls">Rustls</a>, a pure Rust TLS implementation. This requires just flipping a few feature flags in <code>Cargo.toml</code>:</p>
+
+<pre class="wp-block-syntaxhighlighter-code">[dependencies]
+...
+lettre = { version = "0.11.1", features = ["rustls-tls", "tokio1-rustls-tls", ...], default-features = false }
+reqwest = { version = "0.11.22", features = ["rustls", "tokio-rustls", "__tls", "__rustls", "rustls-tls", ...], default-features = false }
+...</pre>
+
+<h2 class="wp-block-heading">Testing the lambda</h2>
+
+<p>I felt this project wouldn't be complete without exploring how to perform automated testing on the solution. The lambda is the kind of component which gives unit testers headaches. It has relatively little business logic but a lot of integrations with external systems. The business logic which does exist is pretty critical, though. If something goes wrong and the message can't go out, the user needs to see an alternative way to reach out to me. There's just enough in there to trip one up when refactoring. At the same time, experience shows that it's at the external integrations that things tends to go wrong.</p>
+
+<p>Thus I wanted to cover as many of the external integrations as possible with tests, and in a way which is as close to a production setup as possible. I also wanted to cover the business logic without the tests running too slowly. With these requirements in mind, I created two test suites:</p>
+
+<ul>
+<li>a single end-to-end integration test covering the happy path, and</li>
+<li>a set of less integrated tests covering various error conditions.</li>
+</ul>
+
+<p>The end-to-end test uses <a href="https://www.localstack.cloud/">LocalStack</a> running in <a href="https://testcontainers.com/">Testcontainers</a> to simulate real AWS services. The test runs the Lambda inside LocalStack and invokes it using the AWS SDK. It sets up its own fake SMTP server and fake FriendlyCaptcha verification server. The AWS Secrets Manager is provided by LocalStack. The following diagram summarises the setup. The component under test is in blue, components written as part of test are in green, and components supplied by LocalStack are in red.</p>
+
+<figure class="wp-block-image aligncenter size-large"><a href="https://gruebelinchen.files.wordpress.com/2023/12/mail-backend-e2e-test.drawio.png"><img src="{{ site.baseurl }}/assets/2023/12/mail-backend-e2e-test.drawio.png?w=551" alt="" class="wp-image-773" /></a></figure>
+
+<p>The test invokes the Lambda with a valid request. It verifies that the email was sent through the simulated SMTP server and that the response is correct.</p>
+
+<p>The major complication in this test setup is that the component under test runs inside a Docker container (managed by the Lambda environment), which itself runs inside another Docker container (LocalStack running with Testcontainers). This makes instrumentation of the component under test quite difficult. One must communicate with the lambda that it should connect with the fake SMTP and FriendlyCaptcha implementations and not attempt to use the real AWS services. I solved this with environment variables, which is not ideal but works well enough.</p>
+
+<p>The test unfortunately leaves out the API gateway. This is because the required features of LocalStack are not available in the free version. For the same reason, it uses the Rust crate <a href="https://crates.io/crates/mailin-embedded"><code>mailin-embedded</code></a> for the fake SMTP server, simulating the AWS Simple Email Service.</p>
+
+<p>The other tests have a much simpler architecture. They do not use LocalStack at all but instead invoke the event handler directly. They still use the fake SMTP server and FriendlyCaptcha running as in-process servers. But they replace the secrets manager with a test double.</p>
+
+<figure class="wp-block-image aligncenter size-large"><a href="https://gruebelinchen.files.wordpress.com/2023/12/mail-backend-unit-tests.drawio.png"><img src="{{ site.baseurl }}/assets/2023/12/mail-backend-unit-tests.drawio.png?w=531" alt="" class="wp-image-775" /></a></figure>
+
+<p>To facilitate the test double for the secrets manager, I introduced a bit of <a href="https://en.wikipedia.org/wiki/Hexagonal_architecture_(software)">hexagonal architecture</a> in the lambda. The trait <code>SecretRepository</code> abstracts away communication with the secrets manager:</p>
+
+<pre class="wp-block-syntaxhighlighter-code">#[async_trait]
+pub trait SecretRepository {
+    async fn open() -&gt; Self;
+    async fn get_secret&lt;T: DeserializeOwned&gt;(
+        &amp;self,
+        name: &amp;'static str,
+    ) -&gt; Result&lt;T, lambda_http::Error&gt;;
+}</pre>
+
+<p>The implementation for the AWS Secrets Manager is a straightforward wrapper over the AWS SDK. The unit tests use an implementation <code>FakeSecretRepository</code> which allows the test to provision and remove secrets as needed.</p>
+
+<p>To install the correct version in the event handler, the lambda event handler use generics:</p>
+
+<pre class="wp-block-syntaxhighlighter-code">struct ContactFormMessageHandler&lt;SecretRepositoryT: SecretRepository&gt; {
+    secrets_repository: SecretRepositoryT,
+    ...
+}
+
+impl&lt;SecretRepositoryT: SecretRepository&gt; 
+    ContactFormMessageHandler&lt;SecretRepositoryT&gt;
+{
+    async fn new() -&gt; Self {
+        let secrets_repository = SecretRepositoryT::open().await;
+        Self {
+            secrets_repository,
+            ...
+        }
+    }
+
+    ...
+}</pre>
+
+<p>With this setup, the unit tests can access and manipulate all of the external systems the lambda backend uses. They can simulate any error condition which may come up and assert on the correct behaviour.</p>
+
+<pre class="wp-block-syntaxhighlighter-code">pub struct FakeSecretRepsitory(HashMap&lt;&amp;'static str, String&gt;);
+
+impl FakeSecretRepsitory {
+    pub fn remove_secret(&amp;mut self, name: &amp;'static str) {
+        self.0.remove(name);
+    }
+}
+
+#[async_trait]
+impl SecretRepository for FakeSecretRepository {...}
+
+type ContactFormMessageHandlerForTesting = 
+    ContactFormMessageHandler&lt;FakeSecretRepsitory&gt;;
+
+#[googletest::test]
+#[tokio::test]
+async fn returns_contact_page_when_secrets_service_fails_for_smtp() {
+    // ...other setup...
+    let mut subject = ContactFormMessageHandlerForTesting::new().await;
+    subject.secrets_repository
+        .remove_secret(SMTP_CREDENTIALS_NAME);
+
+    let response = subject.handle(event).await.unwrap();
+
+    expect_that!(response.status().as_u16(), eq(500));
+    expect_that!(
+        response.body(),
+        points_to(matches_pattern!(Body::Text(contains_substring(
+            "Something went wrong"
+        ))))
+    );
+}</pre>
+
+<h2 class="wp-block-heading">Conclusion</h2>
+
+<p>This project was a worthwhile exploration of the AWS SDK for Rust, both using it and testing against it. While it was a bit more challenging than, say, a JavaScript runtime, it wasn't too hard to get everything working. The biggest challenges were in the testing setup, but I was able to achieve fairly good coverage in the end. All in all, I'm satisfied with the result.</p>
+
+<p>The complete solution is available on <a href="https://github.com/hovinen-tech/hovinen-tech.github.io/tree/main/backend">GitHub</a>.</p>
+
+<blockquote class="wp-block-quote"><p>See also <a href="https://maahl.net/blog/rust-aws-lambda/">this blog post</a> for another exploration of AWS Lambda with Rust with more information on using Lambda with Terraform as well as manual invocation through Cargo Lambda.</p>
+</blockquote>

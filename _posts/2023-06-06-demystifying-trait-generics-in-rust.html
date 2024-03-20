@@ -1,0 +1,222 @@
+---
+layout: post
+title: Demystifying trait generics in Rust
+date: 2023-06-06 20:37:54.000000000 +02:00
+type: post
+parent_id: '0'
+published: true
+password: ''
+status: publish
+categories:
+- Rust
+tags: []
+meta:
+  _last_editor_used_jetpack: block-editor
+  wordads_ufa: s:wpcom-ufa-v3-beta:1686084148
+  timeline_notification: '1686083876'
+  _publicize_job_id: '84695642847'
+author:
+  login: hovinen
+  email: hovinen@gmail.com
+  display_name: Bradford Hovinen
+  first_name: Bradford
+  last_name: Hovinen
+permalink: "/2023/06/06/demystifying-trait-generics-in-rust/"
+---
+
+<p>One of the things I've always found mysterious about the Rust type system is the distinction between <a href="https://doc.rust-lang.org/book/ch10-01-syntax.html#generic-data-types">generic type parameters</a> and <a href="https://doc.rust-lang.org/book/ch19-03-advanced-traits.html#specifying-placeholder-types-in-trait-definitions-with-associated-types">associated types</a>. They both allow one to define a trait with a placeholder type. When does one choose one over the other?</p>
+
+
+<p>I recently ran into a surprising bug in<a href="http://crates.io/crates/googletest"> GoogleTest Rust</a>. The investigation of the cause and the eventual solution helped to shed some light on the difference between these concepts. I've tried to distill my learnings here.</p>
+
+<h2 class="wp-block-heading">A surprising limitation</h2>
+
+<p>GoogleTest is a test assertion library which uses <em>matchers</em> to specify what aspect of a value is to be asserted. For example, <code>eq(123)</code> asserts that the value is equal to the number 123, <code>lt(123)</code> asserts that it is a number less than 123, and <code>gt(123)</code> asserts that it is a number greater than 123. Matchers can be combined with the <code>and</code> method. For example, to assert that a number is strictly between 0 and 10, one can use:</p>
+
+<pre class="wp-block-syntaxhighlighter-code">verify_that!(value, gt(0).and(lt(10)))</pre>
+
+<p>To my surprise, I discovered that this did not work when the actual value being matched is a string. If we try the following with GoogleTest 0.5.0:</p>
+
+<pre class="wp-block-syntaxhighlighter-code">verify_that!("A string", starts_with("A").and(ends_with("string")))</pre>
+
+<p>it does not compile:</p>
+
+<pre class="wp-block-syntaxhighlighter-code">error[E0282]: type annotations needed
+   --&gt; example/src/example.rs:123:51
+    |
+123 |         verify_that!("A string", starts_with("A").and(ends_with("string")))
+    |                                                   ^^^
+    |
+help: try using a fully qualified path to specify the expected types
+    |
+123 |         verify_that!("A string", &lt;str_matcher::StrMatcher&lt;&amp;str&gt; as conjunction_matcher::AndMatcherExt&lt;T&gt;&gt;::and::&lt;str_matcher::StrMatcher&lt;&amp;str&gt;&gt;(starts_with("A"), ends_with("string")))
+    |                                  +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++                ~
+
+For more information about this error, try `rustc --explain E0282`.</pre>
+
+<p>To understand why this is happening, we need to look at how matchers are built.</p>
+
+<h2 class="wp-block-heading">The Matcher trait and generics</h2>
+
+<p>At the centre of GoogleTest is the trait <code>Matcher</code>. It uses a placeholder, which we call <code>ActualT</code>, to specify the type of the value being matched. Rust provides two ways to express this. One can define a generic trait with a type parameter:</p>
+
+<pre class="wp-block-syntaxhighlighter-code">trait Matcher&lt;ActualT&gt; {
+    fn matches(&amp;self, actual: &amp;ActualT) -&gt; bool;
+}</pre>
+
+<p>Or one can add an <em>associated type</em> to the trait:</p>
+
+<pre class="wp-block-syntaxhighlighter-code">trait Matcher {
+    type ActualT;
+
+    fn matches(&amp;self, actual: &amp;Self::ActualT) -&gt; bool;
+}</pre>
+
+<p>We initially opted for the first option. Let’s consider what this implies.</p>
+
+
+<p>A concrete type substituted for the type parameter becomes a part of the type name itself. One needs to specify it in order to <em>name</em> the type, that is, <code>Matcher</code> is not a type, but <code>Matcher&lt;String&gt;</code> is. Using a different type argument changes the type. For example, <code>Matcher&lt;&amp;str&gt;</code> and <code>Matcher&lt;String&gt;</code> are two distinct types in Rust. One consequence of this is that a struct can implement the same generic trait twice, as long as different type arguments are provided to the trait:</p>
+
+<pre class="wp-block-syntaxhighlighter-code">impl Matcher&lt;&amp;str&gt; for StringMatcher {…}
+
+impl Matcher&lt;String&gt; for StringMatcher {…}</pre>
+
+<p>This means that the same matcher can match a string slice <code>&amp;str</code> or an owned string <code>String</code>. Both of the following work:</p>
+
+<pre class="wp-block-syntaxhighlighter-code">let string_reference = "A string";
+verify_that!(string_reference, starts_with("A"))
+
+let owned_string = String::from("A string");
+verify_that!(owned_string, starts_with("A"))</pre>
+
+<p>Now consider what happens when we try to combine matchers with <code>and()</code>. The method <code>and()</code> must be generic with respect to the matcher supplied as its argument:</p>
+
+<pre class="wp-block-syntaxhighlighter-code">trait Matcher&lt;ActualT&gt; {
+    …
+
+    fn and(self, right: impl Matcher&lt;ActualT&gt;) -&gt; impl Matcher&lt;ActualT&gt; {…}
+}</pre>
+
+<p>To resolve the call to <code>and()</code>, the compiler needs to identify the trait implementation being used. To do this, it must know the type <code>ActualT</code>. If the concrete matcher implements the generic <code>Matcher</code> trait for more than one type – as is the case when matching strings – the compiler does not know which one to pick! After all, the two implementations could define different <code>and()</code> bodies:</p>
+
+<pre class="wp-block-syntaxhighlighter-code">impl&lt;'a&gt; Matcher&lt;&amp;'a str&gt; for StringMatcher {
+    …
+    fn and(self, right: impl Matcher&lt;&amp;'a str&gt;) -&gt; impl Matcher&lt;&amp;'a str&gt; {
+        …
+        FooMatcher(…)
+    }
+}
+
+impl Matcher&lt;String&gt; for StringMatcher {
+    …
+    fn and(self, right: impl Matcher&lt;String&gt;) -&gt; impl Matcher&lt;String&gt; {
+        …
+        BarMatcher(…)
+    }
+}</pre>
+
+<p>See <a href="https://play.rust-lang.org/?version=nightly&amp;mode=debug&amp;edition=2021&amp;gist=99d077360731b4e5ea89c87d270ffe32">this playground</a> for a complete example.</p>
+
+<h2 class="wp-block-heading">Associated types</h2>
+
+<p>Now we consider associated types and how they differ from generic type parameters. It will turn out that using an associated type for <code>ActualT</code> in the <code>Matcher</code> trait fixes the aforementioned ambiguity.</p>
+
+
+<p>An associated type in a trait is a requirement, the same way as methods declared in traits are requirements. Requirements must be satisfied by the trait implementation. For methods, the body must be provided. For associated types, a concrete type must be named.</p>
+
+
+<p>Associated types are <a href="https://www.reddit.com/r/rust/comments/fdu47h/generic_parameter_vs_associated_type/">sometimes called</a> a trait’s <em>output types</em> and generic parameters the trait’s <em>input types</em>. The <em>user</em> of a trait specifies arguments for its generic parameters. An <em>implementation</em> of the trait specifies its associated types.</p>
+
+
+<p>So, if we used an associated type, how would the implementation specify the type of the actual value being matched? Consider the situation above, where a single matcher can be matched against both <code>&amp;str</code> and <code>String</code>. Unlike the case with type parameters, we can’t implement the trait twice with two different associated types:</p>
+
+<pre class="wp-block-syntaxhighlighter-code">impl Matcher for StringMatcher {
+    type ActualT = String;
+    …
+}
+
+impl Matcher for StringMatcher {  // Error! Implementing Matcher twice for StringMatcher!
+    type ActualT = &amp;str;
+    …
+}</pre>
+
+<p>This is disallowed because the compiler needs to pick a trait implementation every time we use <code>StringMatcher</code> as a <code>Matcher</code>. For example:</p>
+
+<pre class="wp-block-syntaxhighlighter-code">let x: &lt;StringMatcher as Matcher&gt;::ActualT; // Is this a String or an &amp;str?</pre>
+
+<p>So, <code>StringMatcher</code> can't match both <code>&amp;str</code> and <code>String</code>. We need two distinct types:</p>
+
+<pre class="wp-block-syntaxhighlighter-code">struct StringMatcherValue;
+
+impl Matcher for StringMatcherValue {
+    type ActualT = String;
+    …
+}
+
+struct StringMatcherSlice;
+
+impl Matcher for StringMatcherSlice {
+    type ActualT = &amp;str;
+    …
+}</pre>
+
+<p>More succinctly, we can make <code>StringMatcher</code> itself generic with respect to the type it matches:</p>
+
+<pre class="wp-block-syntaxhighlighter-code">struct StringMatcher&lt;ActualT&gt; {…}
+
+impl&lt;ActualT&gt; Matcher for StringMatcher&lt;ActualT&gt; {
+    type ActualT = ActualT;
+    …
+}</pre>
+
+<p>In other words, the <em>type of the</em> <em>matcher itself</em> -- not the implementation of the <code>Matcher</code> trait -- encodes the type of the value it matches.</p>
+
+<h2 class="wp-block-heading">How this change fixes the ambiguity</h2>
+
+<p>Adding the constraint that concrete matchers must specify the concrete type they match solves the problem we had with <code>and()</code> and string matching. Let’s look at (roughly) the new definition of <code>and()</code>:</p>
+
+<pre class="wp-block-syntaxhighlighter-code">trait Matcher {
+    type ActualT;
+    …
+
+    fn and(self, right: impl Matcher&lt;ActualT = Self::ActualT&gt;) -&gt;
+        impl Matcher&lt;ActualT = Self::ActualT&gt;
+}</pre>
+
+<p>This works with strings as one would expect:</p>
+
+<pre class="wp-block-syntaxhighlighter-code">verify_that!("A string", starts_with("A").and(ends_with("string")))
+   // ActualT is &amp;str because that is the type on which the final matcher is used
+
+verify_that!(String::from("A string"), starts_with("A").and(ends_with("string")))
+   // ActualT is String because that is the type on which the final matcher is used</pre>
+
+<p>Rust’s type inference is powerful enough to allow the type <code>ActualT</code> to be inferred by how the matcher is used. The type against which the matcher <code>starts_with("A").and(ends_with("string"))</code> is matched is <code>&amp;str</code> in the first example above and <code>String</code> in the second. Each usage constrains what <code>ActualT</code> can be in a valid compilation unit. The type constraints in the definition of <code>and()</code> carry the inferred type for <code>ActualT</code> through each of the constituent matchers.</p>
+
+
+<p>Importantly, for each concrete matcher type, there is only <em>one</em> implementation of the trait <code>Matcher</code> and therefore guaranteed only <em>one</em> implementation of the <code>and()</code> method. The Rust compiler does not have to choose which of two concrete trait implementations it must pick as it did when using a generic type parameter. It has a way to infer <code>ActualT</code>, but it does not know how to choose which is the right trait implementation just by looking at how the value is used.</p>
+
+<h2 class="wp-block-heading">What can we say in general?</h2>
+
+<p>The above case feels quite special. What can we say in general about which option to choose?</p>
+
+
+<p>The <a href="https://doc.rust-lang.org/book/ch19-03-advanced-traits.html#specifying-placeholder-types-in-trait-definitions-with-associated-types">Rust Book</a> as well as <a href="https://doc.rust-lang.org/rust-by-example/generics/assoc_items/types.html">Rust by Example</a> both frame the choice to use associated types instead of generic type parameters in terms of ergonomics. With generic type parameters, the trait may be implemented more than once but the trait user must specify the parameters. With associated types, there can be only one trait implementation, but the name of the trait does not include the associated type. The example above shows that there is more to this difference: the wrong choice can create surprising limitations on the use of your API.</p>
+
+
+<p>A quick look at the Rust standard library shows a general preference for associated types in traits. Common traits like <a href="https://doc.rust-lang.org/std/iter/trait.Iterator.html"><code>Iterator</code></a> and <a href="https://doc.rust-lang.org/std/future/trait.Future.html"><code>Future</code></a> use associated types rather than type parameters.</p>
+
+
+<p>There are some cases where generic type parameters are necessary:</p>
+
+<ul>
+<li>The same generic trait instantiated with more than one concrete type should be implemented for a given concrete type. For example, with the <a href="https://doc.rust-lang.org/std/convert/trait.From.html"><code>From</code></a> and <a href="https://doc.rust-lang.org/std/convert/trait.TryFrom.html"><code>TryFrom</code></a> traits, since one might want to convert from many different types into a single type, so one implements the trait with each of the possible source types.</li>
+<li>The associated type would have to carry additional information, such as a lifetime. The recently introduced<a href="https://blog.rust-lang.org/2022/10/28/gats-stabilization.html"> generic associated types</a> can help, but they still have some<a href="https://blog.rust-lang.org/2022/10/28/gats-stabilization.html#when-gats-go-wrong---a-few-current-bugs-and-limitations"> limitations</a>. A use case which falls into one of these limitations may require the use of type parameters.</li>
+</ul>
+
+<p>As a general rule, it's best to use the least powerful feature of a language to achieve your goal. Thus I would recommend using associated types by default. Only if you need the extra flexibility should you use generic type parameters.</p>
+
+<h2 class="wp-block-heading">Conclusion</h2>
+
+<p>The decision of whether to use a type parameter or an associated type is important. I had naively made the decision to use a type parameter early on, and this turned out to lead to a surprising limitation in the library. Changing course after the fact was fairly expensive. Understanding conceptually what is behind the difference may help in making an informed decision. But when in doubt, use associated types.</p>
+

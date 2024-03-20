@@ -8,30 +8,30 @@
         {% if include.current_page == "index" %}
         <span class="nav-link">Home</span>
         {% else %}
-        <a href="index.html" class="nav-link">Home</a>
+        <a href="/index.html" class="nav-link">Home</a>
         {% endif %}
       </li>
       <li class="nav-item{% if include.current_page == "about" %} active{% endif %}">
         {% if include.current_page == "about" %}
         <span class="nav-link">About me</span>
         {% else %}
-        <a href="about.html" class="nav-link">About me</a>
+        <a href="/about.html" class="nav-link">About me</a>
         {% endif %}
       </li>
       <li class="nav-item{% if include.current_page == "case-studies" %} active{% endif %}">
         {% if include.current_page == "case-studies" %}
         <span class="nav-link">Case studies</span>
         {% else %}
-        <a href="case-studies.html" class="nav-link">Case studies</a>
+        <a href="/case-studies.html" class="nav-link">Case studies</a>
         {% endif %}
       </li>
       <li class="nav-item"><a href="https://gruebelinchen.wordpress.com" class="nav-link">Blog <i class="fas fa-external-link"></i></a></li>
-      <li class="nav-item"><a href="{% if include.current_page != "index" %}index.html{% endif %}#contact" class="nav-link">Contact</a></li>
+      <li class="nav-item"><a href="{% if include.current_page != "index" %}/index.html{% endif %}#contact" class="nav-link">Contact</a></li>
       <li class="nav-item dropdown">
         <a href="#" class="dropdown-toggle nav-link" id="navbarDropdown" data-bs-toggle="dropdown" role="button" aria-expanded="false"><i class="fas fa-language fa-xl"></i> <i class="fas fa-caret-down"></i></a>
         <div class="dropdown-menu navbar-default" aria-labelledby="navbarDropdown">
           <span class="dropdown-item active">English</span>
-          <a href="{{ include.current_page }}.de.html" class="dropdown-item">Deutsch</a>
+          <a href="/{{ include.current_page }}.de.html" class="dropdown-item">Deutsch</a>
         </div>
       </li>
     </ul>

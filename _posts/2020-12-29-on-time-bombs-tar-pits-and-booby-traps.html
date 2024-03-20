@@ -1,0 +1,70 @@
+---
+layout: post
+title: On Time Bombs, Tar Pits, and Booby Traps
+date: 2020-12-29 19:32:18.000000000 +01:00
+type: post
+parent_id: '0'
+published: true
+password: ''
+status: publish
+categories: []
+tags: []
+meta:
+  _last_editor_used_jetpack: block-editor
+  timeline_notification: '1609270340'
+  _publicize_job_id: '52792900704'
+  _publicize_done_external: a:1:{s:7:"twitter";a:1:{i:12209128;s:60:"https://twitter.com/gruebelinchen/status/1344003335171559428";}}
+  _publicize_done_12172494: '1'
+  _wpas_done_12209128: '1'
+  publicize_twitter_user: gruebelinchen
+author:
+  login: hovinen
+  email: hovinen@gmail.com
+  display_name: Bradford Hovinen
+  first_name: Bradford
+  last_name: Hovinen
+permalink: "/2020/12/29/on-time-bombs-tar-pits-and-booby-traps/"
+---
+<p>The <a href="https://manifesto.softwarecraftsmanship.org/">software as craft</a> movement is built on a premise of customer focus and personal responsibility. Let the customer decide the priorities, but be <em>absolutely professional</em> in delivering. Design the product with care, test everything, and use all the best practices, and you're home free. The implication is that, if that really doesn't work out, you're just not a professional.</p>
+
+<p>I find this premise deeply unsatisfying.</p>
+<p>It can work really well when the team uses clean practices <em>from day one</em>. But how many of us have the good fortune even to be <em>around</em> on day one? Most of the time we inherit an existing application from other engineers and -- let's face it -- the engineering standards we encounter are seldom up to par with our expectations. When it's a matter of some missing tests or messy code, we can usually deal with it with <a href="https://www.oreilly.com/library/view/working-effectively-with/0131177052/">legacy code techniques</a> or <a href="https://martinfowler.com/books/refactoring.html">refactoring</a> in the context of feature delivery. But problems are all too often far deeper than that. Maybe the system architecture is broken, or the data model is unsuitable, or the application doesn't even have well-defined build and deployment processes. These things could take a fully staffed team weeks or months to fix.</p>
+<p>It can be difficult to get stakeholders on board with the necessary investments to fix such fundamental problems. Often the modus operandi is <em>muddle through:</em> live with the bad design and somehow continue to deliver the features stakeholders want. After all, nearly always muddling through for <em>any one particular feature</em> costs less than fixing the underlying mess. But, as we all know, this is a mirage: not only does this make an engineer's life miserable, but it inevitably leads to piling more and more technical debt onto the application -- exactly the opposite of what a professional software engineer should strive to do.</p>
+<p>Realistically, to fix such problems, a team needs to devote so many resources to improving the architecture that their capacity to deliver features the stakeholders want is severely limited. So is a professional software engineer supposed to proceed?</p>
+<h1>Saying No</h1>
+<p>One answer may well be to say "no" to the whole project. That is, before even agreeing to work on a product or to join a team, carefully inspect their architecture and practices and see whether it is realistic to do the kind of work expected by the stakeholders. Reject any project which doesn't meet the bar.</p>
+<p>Were life only so simple! There are a couple of problems with such an approach:</p>
+<ul>
+<li>One does not always have access to all the required information before joining. This is particularly true when joining a new company as an internal software engineer. Rarely will the company let you see their code before you sign the contract.</li>
+<li>If one filters out all projects with severe architectural problems, one will quickly find that the selection of acceptable projects is practically empty.</li>
+</ul>
+<p>Of course, this approach also doesn't help one if one is already <em>in</em> such a project.</p>
+<h1>Kinds of architectural debt</h1>
+<p>I use the term <em>architectural debt</em> to describe problems whose scope is large enough that one cannot realistically solve them in the context of implementing a single feature or resolving a single bug. As opposed to <em>technical debt</em>, which can be paid down tactically "as one goes", paying down architectural debt requires planning and strategy. Because of that, one can't get around some degree of negotiation and alignment with product stakeholders. How that works depends on the alignment of the stakeholders' interests with those of the engineers.</p>
+<p>Here's where a senior software engineer can get some extra "soft" skills to really stand out. Negotiation is not rocket science but it requires understanding where our natural human instincts (think fight or flight) can become a real hindrance. Successful negotiation requires recognizing our own (often poor) instincts and getting ahead of them. To learn more about this, I heartily recommend William Ury et al.'s seminal trilogy <a href="https://www.williamury.com/books/getting-to-yes/">Getting to Yes</a>, <a href="https://www.williamury.com/books/getting-past-no/">Getting Past No</a>, and <a href="https://www.williamury.com/books/the-power-of-a-positive-no/">The Power of a Positive No</a>.</p>
+<p>I broadly define three types of architectural debt: <em>time bombs</em>, <em>tar pits</em>, and <em>booby traps</em>. These have different dynamics when aligning with stakeholders, as we will see below.</p>
+<h2>Time bombs</h2>
+<p>We speak of a <em>time bomb</em> when the product as it currently stands, or some important aspect of it, will stop working at some point in the future if no changes are made. Examples of this are:</p>
+<ul>
+<li>A critical dependency of the product, such as an API, is to be turned down.</li>
+<li>The load on the application is inexorably increasing and, after a certain amount of time, the product will no longer be able to scale to handle it.</li>
+</ul>
+<p>In this case, the <em>primary</em> interest in resolving the problem lies with the stakeholders. They are, after all, interested in having a working product. Engineers certainly do not want to see their product stop working either. Thus there is a broad alignment of interests. Negotiating the work to eliminate the problem should be unproblematic, assuming both sides are acting in good faith.</p>
+<p>Here the onus lies on the engineers to start the process. They have a <em>professional ethical responsibility</em> to ensure that the stakeholders are informed of potential time bombs as soon as they become apparent. Stakeholders should then be able to prioritize product work appropriately to defuse the time bomb before problems arise, assuming that is still possible.</p>
+<h2>Tar pits</h2>
+<p>A <em>tar pit</em> is an aspect of the application which greatly and unnecessarily increases engineering effort. Examples may include:</p>
+<ul>
+<li>Lack of testability,</li>
+<li>Convoluted design,</li>
+<li>Slow or unreliable build and test processes.</li>
+</ul>
+<p>In this case, the interests of the engineers are largely aligned with those of the stakeholders. Such problems make working on the product frustrating but also greatly increase development costs. In principle, stakeholders and engineers should be able to agree to prioritize the work to fix these problems if the engineers can clearly make a case that doing so reduces costs more than the required investment.</p>
+<p>Of course, these costs can be hard to measure, especially if one considers the <em>true</em> cost: engineers don't want to work in tar pits, so when faced with such problems, they tend to leave. Worse yet, it's usually the <em>best</em> -- the most creative, innovative, and efficient -- engineers who leave. It's worth making stakeholders aware of this, but be careful that it come across as a warning and not a threat.</p>
+<h2>Booby Traps</h2>
+<p>A <em>booby trap</em> is a too easily made potential mistake with real costs. The canonical example of this is missing test coverage: a well-meaning engineer may unknowingly break production code with no safeguard between their change and the costs which follow. There are many other examples.</p>
+<p>This is the most problematic from the perspective of negotiation, since the <em>primary</em> interest lies with the engineer in solving the problem. The stakeholder has only a <em>secondary</em> interest in avoiding the costs of such mistakes. Unenlightened stakeholders may, however, simply argue that the danger is the "engineer's problem", that it's "their responsibility not to make mistakes" and that they will not invest in measures to protect engineers from such problems.</p>
+<p>Here I must be blunt: a professional software engineer has an <em>ethical obligation</em> to themselves, their colleagues, and ultimately their stakeholders to <em>eliminate booby traps when they find them</em>. This requirement, in my view, supersedes the stakeholder's prerogative to prioritize product work. Indeed, the <em>stakeholder is not in a position to evaluate the priority of such work</em>, since they (normally) do not have the necessary technical background. The team should therefore plan and schedule such work itself and reduce its available capacity for product development as appropriate.</p>
+<h1>Conclusion</h1>
+<p>Senior software engineers have a professional obligation to look after the health of the products they developing. There is a natural tension of interests between the technical leadership of a team and the product stakeholders. A good engineer uses negotiation techniques to make sure the technical point of view is respected, even if it means that part of the team's engineering capacity is not immediately available to do what product stakeholders would prefer. That's the key to a healthy product: technical and product leadership negotiating as equal partners.</p>
+<p><!-- wp:paragraph --></p>
+<p><!-- /wp:paragraph --></p>

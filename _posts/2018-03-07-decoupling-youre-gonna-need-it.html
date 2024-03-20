@@ -1,0 +1,77 @@
+---
+layout: post
+title: 'Decoupling: You''re gonna need it'
+date: 2018-03-07 20:41:44.000000000 +01:00
+type: post
+parent_id: '0'
+published: true
+password: ''
+status: publish
+categories: []
+tags: []
+meta:
+  _publicize_done_12172494: '1'
+  _rest_api_published: '1'
+  _rest_api_client_id: "-1"
+  _publicize_job_id: '15489659803'
+  timeline_notification: '1520455304'
+  _publicize_done_external: a:1:{s:7:"twitter";a:1:{i:12209128;s:59:"https://twitter.com/gruebelinchen/status/971486077570699265";}}
+  _wpas_done_12209128: '1'
+  publicize_twitter_user: gruebelinchen
+author:
+  login: hovinen
+  email: hovinen@gmail.com
+  display_name: Bradford Hovinen
+  first_name: Bradford
+  last_name: Hovinen
+permalink: "/2018/03/07/decoupling-youre-gonna-need-it/"
+---
+<p>One of the key properties of <a href="https://www.amazon.de/Clean-Architecture-Craftsmans-Software-Structure/dp/0134494164">Clean Architecture</a> (also known as <a href="http://alistair.cockburn.us/Hexagonal+architecture">hexagonal architecture</a>, <a href="http://www.dossier-andreas.net/software_architecture/ports_and_adapters.html">ports and adapters</a>, or <a href="http://jeffreypalermo.com/blog/the-onion-architecture-part-1/">onion architecture</a>) is that the domain model of an application or service is <em>decoupled</em> from all external integrations, including the persistence mechanism. (The latter decoupling also goes by the name <em><a href="http://deviq.com/persistence-ignorance/">persistence ignorance</a></em>.) This means that all external integrations are hidden behind interfaces, so that there is no <em>source code</em> dependency from the business logic or domain model to any external system.</p>
+
+<p>Some developers hear this and object with <a href="https://en.wikipedia.org/wiki/You_aren%27t_gonna_need_it">YAGNI</a>: adding extra interfaces increases complexity and is a code smell, they claim. No interface should ever exist unless there are at least two implementations <em>used in production</em>, they say.</p>
+<p>Of course, YAGNI is a real concern, but I claim that this kind of objection is not its intention.</p>
+<h2>What is the difference?</h2>
+<p>My answer to the YAGNI objection is, "But what if you <em>do</em> need it?" After all, you have no crystal ball to see what will change and what won't.</p>
+<p>Take persistence ignorance as example. The persistence layer and the domain model are different things which change for different reasons. This makes them exactly the right targets for decoupling.</p>
+<p>When arguing that one should decouple the domain model and the persistence layer because one or the other could change, one often hears, "But that will <em>never</em> change," normally thinking of a large scale change such as swapping out the entire database. Can one really guarantee that the two will <em>never</em> change independently of each other? Over 2, 5, 10 years? Remember, no one has a crystal ball.</p>
+<p>Consider the simplest case of a change to the two components: adding a new field to the domain model to be persisted directly. This is a case where the two appear to change in lock-step. In fact, this type of change is commonly cited as a reason to use a tool like ORM to avoid explicit mappings: if the mapping is automatic, then this change is trivial, right?</p>
+<p>But is it?</p>
+<p>The change in the domain model might involve updating the business rules to make use of the new data. In the persistence layer, one must worry about data which predate the addition of the field. One needs to make sure the right thing happens when persisted domain objects are deserialized into the new domain model. Does one prepopulate the data? With a default value? With a value calculated by some rule? Or should one add some trigger when loading the data so that a suitable value is set when it is absent? Does all of this satisfy the assumptions of the business logic?</p>
+<p>These are all solvable problems, but tackling these <em>at the same time as</em> worrying about the domain model is a lot on which to chew.</p>
+<p>And this is only the simplest case! What if one is reorganizing the database by moving columns between tables or moving tables between schemata? Or refactoring the domain model? Replacing an int with a CustomerId? Changing the key of a Map? Each of these should have no effect on the other side, but suddenly one needs to think about both components at once and how they interact. Any refactoring in the domain model could suddenly be a change in the persistence layer, and any change in the persistence layer could affect how data are represented in the domain model.</p>
+<p>And one tiny mistake could lead to data corruption.</p>
+<p>I would wager that any serious application will undergo significant changes to its domain model, persistence mechanism, or both during its lifetime. And if it doesn't, you probably shouldn't be developing it. For that means that it's a dead area: the problems have already been solved, and someone has solved them better than you will. Use their solution and be done with it.</p>
+<h2>So why use an interface?</h2>
+<p>It should be clear why we decouple the persistence mechanism from the domain model, but why do that via an interface? Why not encapsulate the persistence mechanism in a class and leave it at that? Some developers would object that an interface is unnecessary at this point.</p>
+<p>The reason to use an interface is that a class would merely <em>encapsulate</em> the persistence layer, but would not <em>decouple</em> it from the domain model. Encapsulation is weaker than decoupling -- it tends to leak. To understand this, consider the question: what language would the public interface of such a class speak?</p>
+<p>In order to achieve a true decoupling, the <em>domain model</em> <em>must drive the public interface</em> provided by the integration with the external service, not the other way around. When the persistence layer is a concrete class, it tends to drive its interface.</p>
+<p>This could be visible in the code itself. Let's take a concrete example. Suppose we have a domain object <tt>Customer</tt>. We access the persistence mechanism for <tt>Customer</tt> through a class called <tt>CustomerRepository</tt>, whose public interface appears initially as follows:</p>
+<pre>class CustomerRepository {
+  void persist(Customer customer);
+  Customer load(CustomerId id);
+}</pre>
+<p>Now suppose that some query functionality is to be added to the repository. One way to do this is to add one method for each kind of query:</p>
+<pre>class CustomerRepository {
+  void persist(Customer customer);
+  Customer load(CustomerId id);
+  <strong>List&lt;Customer&gt; findByName(String name);
+</strong>  <strong>List&lt;Customer&gt; findByCountry(CountryCode country);
+</strong>  <strong>...</strong>
+}</pre>
+<p>Perhaps there is a need for more advanced queries, such as filtering by multiple criteria, sorting, pagination, and so on. If the repository is implemented by an SQL database, the temptation grows to add a method like this:</p>
+<pre>class CustomerRepository {
+  void persist(Customer customer);
+  Customer load(CustomerId id);
+  <strong>List&lt;Customer&gt; findByQuery(String query);</strong>
+}</pre>
+<p>The parameter <tt>query</tt> is a plain SQL statement. Now the domain model is tightly coupled to the persistence layer. A change in the persistence layer may require updating all parts of the domain model which use this method.</p>
+<p>Even if one avoids this kind of direct coupling, more subtle forms of coupling can (and will) appear in the form of implicit assumptions about the behaviour of the persistence layer by the domain model. For example, suppose that one of the query methods is implemented so as to return the results in a particular sort order -- perhaps due to the implementation of the underlying database. The domain model simply assumes that the results are sorted in that way, but this assumption is not made explicit anywhere. A change in that sort order could cause a production defect without any test preventing it.</p>
+<h3>How to prevent this?</h3>
+<p>Using an interface to decouple the two layers is only part of the solution. It is also necessary to have a <em>reference implementation</em> of this interface to be used in tests. It is then a <em><a href="https://martinfowler.com/articles/mocksArentStubs.html">fake</a></em>, a specific type of test double, which constitutes the simplest possible implementation which satisfies the contract. No external integrations, no database -- just a hash map in memory.</p>
+<p>To ensure that the behaviour of both the fake and the database-based implementation used in production satisfy the contract assumed by the domain model, it is also necessary to write <em><a href="https://martinfowler.com/bliki/ContractTest.html">contract tests</a></em> which run against all concrete implementations of the interface.</p>
+<p>Sound like a lot of work? It's not really that much: absent some mechanism to support complex flexible queries, the fake is nearly trivial to write. And the contract tests are tests one should have in any case, irrespective of whether one has an interface or just a concrete class.</p>
+<p>This model reverses the natural inclination towards coupling which occurs when one uses a concrete class to encapsulate the persistence layer: it becomes most natural to let the domain model drive the interface to the persistence layer, and let the persistence layer implement that implementation to serve the domain model. A change in the persistence layer is contained to that layer and has little or no effect on the domain model. A change in the domain model might imply some changes to the code which translates from it to the language of the persistence layer (i.e. serializing and deserializing domain objects), but those changes are transparent and straightforward, and have no unintended effect on the persistence format. Life for developers and maintainers becomes much easier -- over the <em>entire</em> lifetime of the product.</p>
+<h2>So where does YAGNI really apply?</h2>
+<p>The most common mistake developers make by which the YAGNI response is appropriate is probably premature generalization. One wants to solve a relatively straightforward problem and decides on a complex solution which can solve a far greater range of problems. Going back to the question, "But what if you <em>do</em> need it?" one has a simple answer: if one discovers the need, one can refactor the simple solution to a more general one later. Or one can add another simple solution to solve the next problem which comes. Or one can add a complex solution alongside the existing simple one. All of these solutions work just fine, and having settled for a simple solution doesn't hinder the introduction of another solution later. There is no risk to picking the simple solution.</p>
+<p>If one does not decouple components which change for different reasons, then one is introducing a strong assumption into the core of the application, namely, that the two components will remain in close connection with one another for the entire lifetime of the product. And the cost of changing an assumption which underlies the architecture of an application is <em>huge</em>.</p>
+<p>Of course, one can't avoid all assumptions. And one does not have a crystal ball to see what will change and what won't. But inappropriate coupling under the assumption that some components will never change -- or will only change in certain ways -- over the lifetime of an application is likely to cause a lot of pain down the road.</p>

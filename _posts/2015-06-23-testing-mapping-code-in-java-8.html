@@ -1,0 +1,167 @@
+---
+layout: post
+title: Testing mapping code in Java 8
+date: 2015-06-23 20:17:49.000000000 +02:00
+type: post
+parent_id: '0'
+published: true
+password: ''
+status: publish
+categories: []
+tags:
+- java
+- software development
+- testing
+meta:
+  _rest_api_published: '1'
+  _rest_api_client_id: "-1"
+  _publicize_job_id: '11966828663'
+author:
+  login: hovinen
+  email: hovinen@gmail.com
+  display_name: Bradford Hovinen
+  first_name: Bradford
+  last_name: Hovinen
+permalink: "/2015/06/23/testing-mapping-code-in-java-8/"
+---
+<p>My <a href="https://gruebelinchen.wordpress.com/2015/06/21/cleaner-assertions-with-matchers/">last post</a> covered the use of matchers with an example of code which maps from one data structure to another. In general, testing mapping code is pretty tedious. Every time a corresponding pair of fields is added to data structures, a new test is needed to verify that the fields are mapped properly. Depending on the specific case, more tests may be necessary to cover the cases where the value is not present one or the other data structure.</p>
+
+<p>The addition of lambda expressions in Java 8 raises new possibilities for reducing this pain. In this post I'll show how to test the mapping in such a way that each new field introduces a minimum of additional bootstrap, while retaining all of the advantages of clear, focused tests with matchers.</p>
+<p>Let's first review the mapping problem from the last post. We start with some classes which are to be mapped.</p>
+<pre>class Address {
+    private String houseNumber;
+    private String street;
+    private String postalCode;
+    private String city;
+    private String country;
+    private String phone;
+
+    // Getters for the above fields
+}
+
+class Customer {
+    private String name;
+    private Address address;
+    private CustomerType type;
+}
+
+enum CustomerType {
+    PRIVATE_CUSTOMER, BUSINESS_CUSTOMER, UNKNOWN
+}
+
+class ExternalCustomer {
+    private ExternalAddress address;
+    private ExternalCustomerType type;
+}
+
+class ExternalAddress {
+    private String name;
+    private String addressLine1;
+    private String addressLine2;
+    private String zip;
+    private String city;
+    private String state;
+    private String country;
+    private String phone;
+
+    // Getters and setters for the above fields
+}
+
+enum ExternalCustomerType {
+    PRIV, BUS, UNKNOWN
+}</pre>
+<p>The method under test has the following signature.</p>
+<pre>List&lt;ExternalCustomer&gt; convertCustomers(List&lt;Customer&gt; customers)</pre>
+<p>How do we handle the many fields? Three options come to mind:</p>
+<ul>
+<li>Write (at least) <em>one test per field</em>. This involves a lot of overhead per field.</li>
+<li>Write <em>one test for several fields</em> and include <em>several separate asserts</em> in it. This has the disadvantage that only the first assertion which fails will result in a message, possibly hiding the scope of the problem in case of failure.</li>
+<li>Write <em>one test for several fields</em> and <em>package all asserts together</em>. If there are, however, many fields, only one of which is incorrect, the expected output will nevertheless normally include all fields, making it hard to find the correct one.</li>
+</ul>
+<h2>A parametrised test</h2>
+<p>I present here an alternative approach using a single parametrised test. For this, we need an addition to JUnit to support parametrised tests at the method level. I find <a href="https://github.com/Pragmatists/junitparams">JUnitParams</a> quite good and will use it here. This requires first binding the JUnitParams library into the project and then setting the test runner appropriately on the test class.</p>
+<pre>@RunWith(JUnitParamsRunner.class)
+class ConverterTest {
+    ...
+}</pre>
+<p>We shall define a class Mapper which will serve as the single parameter. It contains roughly a description of the test case, instructions for constructing the input, and a matcher to be applied to the output. Here I shall assume that we use a <a href="https://en.wikipedia.org/?title=Builder_pattern">builder idiom</a> to construct the customer object.</p>
+<pre>public class CustomerMapping {
+    private final String description;
+    public final Function&lt;Customer.Builder, Customer.Builder&gt;
+        inputTransform;
+    public final Matcher matcher;
+
+    // Constructor to set the fields directly from its params
+    public CustomerMapping(...) { ... } 
+
+    @Override
+    public String toString() {
+        return description;
+    }
+}</pre>
+<p>The implementation of toString ensures that the JUnit report lists the description along with the test case.</p>
+<p>How is the test implemented? Easy:</p>
+<pre>@Test
+@Parameters(method = "parametersForConversion")
+public convertShouldConvertData(CustomerMapping mapping) {
+    Customer customer =
+        mapping.inputTransform.apply(Customer.builder()).build();    assertThat(convertCustomers(ImmutableList.of(customer)),
+        contains(mapping.matcher));
+}</pre>
+<p>This creates some object with default settings and applies the transformation for this test case to it. It then sends the result to the system under test and checks that the matcher for this test case matches the result.</p>
+<p>How do the parameters appear? First, we recall the PropertyMatcher from the last post:</p>
+<pre>public class PropertyMatcher&lt;T, U&gt; {
+    private final String propertyName;
+    private final Function&lt;T, U&gt; accessor;
+
+    public static &lt;T, U&gt; PropertMatcher&lt;T, U&gt;
+         property(String propertyName, Function&lt;T, U&gt; accessor) {
+        return new PropertyMatcher&lt;&gt;(propertyName, accessor);
+    }
+
+    public PropertyMatcher(String propertyName,
+            Function&lt;T, U&gt; accessor) {
+        this.propertyName = propertyName;
+        this.accessor = accessor;
+    }
+
+    public FeatureMatcher&lt;T, U&gt; matches(
+            Matcher&lt;? super U&gt; innerMatcher) {
+        return new FeatureMatcher&lt;&gt;(innerMatcher, propertyName,
+                propertyName) {
+            @Override
+            public U propertyValueOf(T actual) {
+                return accessor.apply(actual);
+            }
+        }
+    }
+
+    public FeatureMatcher&lt;T, U&gt; is(U value) {
+        return matches(is(value));
+    }
+}</pre>
+<p>Here I've added an additional method "is" to assist in readability. Now we just have one case per field.</p>
+<pre>public static Object[] parametersForConversion() {
+    return new Object[] {
+        new CustomerMapping("name",
+            (c) -&gt; c.withName("Max Mustermann"),
+            property("name", (c) -&gt; c.getAddress().getName())
+                .is("Max Mustermann")),
+
+        new CustomerMapping("address line 1",
+            (c) -&gt; 
+                c.withStreet("Hauptstraße")
+                 .withHouseNumber("62"),
+            property("address line 1",
+                    (c) -&gt; c.getAddress().getAddressLine1())
+                .is("Hauptstraße 62")),
+
+        new CustomerMapping("postal code",
+            (c) -&gt; c.withPostalCode("12345"),
+            property("zip", (c) -&gt; c.getAddress().getZip())
+                .is("12345")),
+        ...
+    };
+}</pre>
+<p>Now each field gets its own test case, showing up separately in the report tagged with the description passed as the first argument to CustomerMapping.</p>
+<p>The class Mapping can also be made generic with respect to the sources and targets of the mapping. Then the effort of creating the associated classes need only be made once.</p>

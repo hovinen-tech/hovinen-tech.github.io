@@ -1,0 +1,51 @@
+---
+layout: post
+title: Just say no to ORM
+date: 2017-07-09 09:14:06.000000000 +02:00
+type: post
+parent_id: '0'
+published: true
+password: ''
+status: publish
+categories: []
+tags: []
+meta:
+  _rest_api_published: '1'
+  _rest_api_client_id: "-1"
+  _publicize_job_id: '6915017277'
+  _publicize_done_external: a:1:{s:7:"twitter";a:1:{i:12209128;s:59:"https://twitter.com/gruebelinchen/status/883977575583952896";}}
+  _publicize_done_12172494: '1'
+  _wpas_done_12209128: '1'
+  publicize_twitter_user: gruebelinchen
+author:
+  login: hovinen
+  email: hovinen@gmail.com
+  display_name: Bradford Hovinen
+  first_name: Bradford
+  last_name: Hovinen
+permalink: "/2017/07/09/just-say-no-to-orm/"
+---
+<p>The allure looms large. Get rid of that pesky, tedious database code! Let a framework write it all for you! Object-relational mapping (ORM) tools such as <a href="http://hibernate.org/">Hibernate</a> and <a href="https://github.com/objectify/objectify">Objectify</a> promised to make the persistence of domain objects a trivial matter and letting them focus on the business logic which really delivers value.</p>
+
+<p>That dream hasn't really worked out.</p>
+<p>In fact, I would argue that, over the long run, ORM brings far more problems than it solves and should not be used.</p>
+<h2>Coupling the domain model to the persistence layer</h2>
+<p>Consider how ORM is normally used: one annotates the domain objects and the framework automatically maps the objects to and from persisted data in the database. The mapping normally maps fields with database columns by name; the developer also has the option to specify via annotation an alternative database column name to which a field should be mapped.</p>
+<p>Now, what happens when one renames a field? Normally, that would be a safe refactoring. Suddenly, absent further annotation, that implies a change in the representation of the object in the database. That might be a simple matter to fix, but what if the desired changes are more extensive: moving a set of fields to a different class, reorganizing the values of an enumuration, or changing a string-based representation of a value to a value object?</p>
+<p>Over time, new and changing requirements may make such changes in the domain model desirable. Using ORM makes such changes far more complex, expensive, and potentially risky. The coupling with the persistence layer acts as a chain, forcing the developers to introduce ever more complex workarounds to maintain the clean mapping to the persistence layer. This is not sustainable.</p>
+<h2>Domain object validity</h2>
+<p>It is a useful property in the business logic of an application that one can always assume that all domain objects are in a valid state. The alternative is that, before taking any action, the business logic must ensure the validity of each domain object in play -- a tedious and error-prone affair. This method is also subject also to immense duplication as such validation checks multiply across the business logic.</p>
+<p>How do we ensure this property? First, we must maintain control over the instantiation of domain objects, so that no object can be instantiated in an invalid state. ORM defeats this process by providing a back door through which domain objects may be instantiated: via restoration from the database.</p>
+<p>Now, one could argue that all such objects were once persisted by the same application, so they should already have been valid (this ignores cases where mutliple applications have access to the same underlying database -- a situation one may come to regret but which often occurs in practice). But what about defects in the application, both present and past? What about prior versions? Can one guarantee that an object which was valid five years ago <em>will always</em> be valid in the current version, given the automatic mapping provided by ORM? Further, can one guarantee that <em>only</em> the application modifies data in the database? Often the database or application administrators have access to manipulate data outside the normal application business rules.</p>
+<h2>Make the mappings explicit...</h2>
+<p>What is the alternative? I am a big fan of DSLs such as <a href="https://www.jooq.org/">jOOQ</a> and <a href="http://www.querydsl.com/">Querydsl</a> for access to SQL databases. They allow one to write SQL in a type-safe manner from within Java and present an enormous improvement over plain JDBC. Such solutions do not, however, take over the functions of an ORM: one must still normally write the mapping to and from domain objects oneself.</p>
+<p><em>This is not a bad thing!</em></p>
+<p>Many developers bristle at the idea of writing mapping code, particularly when that code seems trivial or tedious. This is often the case early in the history of an application. After ten years of accumulated history, not so much. Maintainers of older applications would often be thankful to see some straightforward mapping code rather than the tangled spaghetti accumulated on top of an ORM-enabled entity to keep up with changing requirements.</p>
+<p>Writing the mapping explicitly allows that mapping to act as an <em>anti-corruption layer</em>, which ensures that, whatever is stored in the database, only valid domain objects are ever created. If incorrect data are persisted due to a defect in the application, one has two options: fix the data in the database, or update the application to correct the data upon loading. Often the latter is the preferable option -- the former may even be out of the question due to technical or legal constraints.</p>
+<p>What's more: an <em>implicit</em> mapping as done by ORM makes such defects more <em>likely</em> over the lifetime of the application, since developers have a harder time understanding the effects of changes in the domain model. Such a mapping will almost certainly not be explicitly tested -- why write a test that such-and-such domain object has such-and-such persisted representation and vice versa when the ORM should be doing that automatically? This only compounds the problem.</p>
+<h2>...and <em>test them</em>.</h2>
+<p>That point about testing merits further elaboration. Often one would hear the objection that such tests should be unnecessary, since they would effectively be testing the framework. But they <em>aren't</em> just testing the framework -- they're testing how the framework is <em>configured</em> by the domain class structure and annotations (not to mention whatever other spaghetti exists on top of all that)! In fact, explicit tests of persistence are the <em>most important tests one can write in an application</em>. Break some key workflow and the solution is simple: roll your release back. Break persistence and you have data corruption, or even data loss. Rollback will not fix the problem. If your lucky, you can spend the next week struggling to repair your data to find a workaround in your application to work with the corrupted data. If you're unlucky, the data are unrecoverable and you may be out of a job.</p>
+<p>But if one is going to write such tests -- and I mean <em>properly</em>, testing the persistence and retrieval of all domain objects in all the ways they can appear, including old versions of the application, defective data, and so on -- then one might as well write the mapping anyway. The additional effort is fairly trivial at that point.</p>
+<h2>Peristence layer as a plugin</h2>
+<p>The cleanest way to design an application is to treat all external services -- including persistence -- as <em>plugins</em>. The domain model should define what interfaces they must satisfy and the code which interacts with those external services should simply implement the required interfaces. This is the idea behind what is variously called <a href="http://alistair.cockburn.us/Hexagonal+architecture">ports an adapters, hexagonal architecture</a>, <a href="http://jeffreypalermo.com/blog/the-onion-architecture-part-1/">onion architecture</a>, and <a href="https://8thlight.com/blog/uncle-bob/2012/08/13/the-clean-architecture.html">clean architecture</a>.</p>
+<p>ORM defeats this idea by letting details of the persistence layer seep directly into the core of the application. It may seem tempting to avoid the effort to write an explicit mapping (particularly early in this history of an application, when that mapping seems trivial), but over time, that turns out to be a Faustian bargain. Just grit your teeth and write that mapping -- you or your successors will be grateful.</p>

@@ -1,0 +1,77 @@
+---
+layout: post
+title: Dealing with entities with mutable state
+date: 2015-08-23 18:22:04.000000000 +02:00
+type: post
+parent_id: '0'
+published: true
+password: ''
+status: publish
+categories: []
+tags:
+- CAP theorem
+- domain-driven design
+- event sourcing
+- software development
+meta:
+  _rest_api_published: '1'
+  _rest_api_client_id: "-1"
+  _publicize_job_id: '14016998591'
+  _publicize_done_external: a:1:{s:7:"twitter";a:1:{i:12209128;s:59:"https://twitter.com/gruebelinchen/status/635517559517806593";}}
+  _publicize_done_12172494: '1'
+  _wpas_done_12209128: '1'
+  publicize_twitter_user: gruebelinchen
+author:
+  login: hovinen
+  email: hovinen@gmail.com
+  display_name: Bradford Hovinen
+  first_name: Bradford
+  last_name: Hovinen
+permalink: "/2015/08/23/dealing-with-entities-with-mutable-state/"
+---
+<p>In domain-driven design, <em>entities</em> are distinguished by an <em>identity</em> which leads naturally to the notion of <em>mutability</em>. Conceptually, an entity -- such as a product or a customer account -- has some immutable identifying characteristic -- product identifier, customer account number -- and some master data which can change with time, such as price or customer address. How does an application deal with such mutable state? In a modern context there are various factors to consider:</p>
+
+<ul>
+<li>Mutable state is a huge source of defects -- easily the single biggest source of defects in software development, when broadly considered. It makes reasoning about the software much more difficult.</li>
+<li>When an object is manipulated from multiple threads, there is a potential for race conditions, leaving the object in an inconsistent state.</li>
+<li>Changes to the mutable state of an object may not be visible to all threads. It can even happen that, while one thread manipulates the object and leaves it in a consistent state, the state which other threads see is inconsistent.</li>
+<li>In the cloud, the application may be distributed across multiple servers which do not see each other's objects directly. Synchronization of the objects' state occurs normally via the persistence mechanism.</li>
+<li>Even the persistence mechanism may not be able to guarantee consistency of the various entities in the presence of network partitions, as demonstrated by the <a href="https://en.wikipedia.org/wiki/CAP_theorem">CAP theorem</a>.</li>
+</ul>
+<p>Dealing with these constraints is challenging. The first three can be solved by requiring that objects in memory be immutable, but how does that dovetail with mutable state? The latter two considerations place constraints on the performance, scalability, and availability of the application.</p>
+<p>In this post I summarize the patterns I have seen for dealing with entities with mutable state, along with some observations of their advantages and disadvantages.</p>
+<h2>Read-manipulate-write</h2>
+<p>Most applications take the approach that, with every request, the required entity is loaded from the database, manipulated, and stored again. The entire cycle occurs in a transaction to prevent race conditions which result when multiple clients attempt to manipulate the same data. To the extent that multiple entities are updated by a single request, a single transaction is used for the full request to ensure atomicity.</p>
+<p>This model is conceptually simple and relatively safe (provided each request is processed by exactly one thread), but has a few drawbacks:</p>
+<ul>
+<li>It requires that the objects representing the entities be mutable.</li>
+<li>Reloading entities from the database on each request makes the processing of the requests significantly slower.</li>
+<li>This model relies on having a strongly consistent view of the database, meaning that availability must be sacrificed in the presence of network partitions.</li>
+<li>In particular, it is difficult to implement such a model in a distributed system where network partitions and long latencies are more common. Such is the case, for example, with mobile applications.</li>
+</ul>
+<h2>Caching in memory</h2>
+<p>Entities are stored in memory and updated as needed. After modification, the new state may be persisted.</p>
+<p>This has obvious performance benefits over the read-manipulate-write model described above, but comes with some serious drawbacks:</p>
+<ul>
+<li>As above, entities are mutable. However, they are also shared between threads, meaning that they must be carefully designed to avoid race conditions and to ensure the visibility of updates to all threads.</li>
+<li>Sharing updated states of the objects between instances of the application to ensure consistency is extremely difficult. In particular, how does one instance know whether another instance has modified a shared entity?</li>
+</ul>
+<p>Despite these drawbacks, this can be a suitable approach for entities which are often read<em> </em>but rarely updated. Objects which represent the configuration of the application or entities which reflect the organisational structure of the company, its products, or its facilities are good candidates.</p>
+<p>Nevertheless, the mutability of the entities in memory is a potentially big source of bugs. Particularly when updates are rare, this is rather unfortunate, since it adds a hornet's nest of problems to support rare (if necessary) use cases.</p>
+<h2>Entity versioning</h2>
+<p>In this pattern, all objects representing entities are immutable. When an entity is to be modified, a new object with the modified content is created. It can then be written to the persistence layer.</p>
+<p>This has the advantages of immutability but hides one major complication: what happens when other objects have references to the object to be modified? The references would then point to out-of-date objects, possibly resulting in an inconsistent state. The application must be designed in such a way that the entire graph of referencing objects is then rebuilt. accordingly. This is of course easier if the graph is discarded upon completion of the current request.</p>
+<p>One way to deal with this problem is to limit direct references to entities and instead use <em>indirect</em> references via identifiers. Code which wishes to navigate the object graph must then fetch the referenced entities via their respective repositories.</p>
+<p>There is a further potential complication: what happens if two instances of the application compete to update an entity in conflicting ways? This can be a difficult problem to solve cleanly. In the read-manipulate-write workflow, the problem will be detected at the latest when the second process attempts commits its transaction based on stale data. In the case of entity versioning, another mechanism is required, for example by coupling the write operation with the version based on which the modifications were made. If the previous version is out of date, then the write can be rejected.</p>
+<h3>Immutability in the database</h3>
+<p>One variant of this approach is to make the <em>database</em> records invariant as well. In this pattern, each record has a <i>version-number</i> (which can be a simple as a creation timestamp) and a new record is created with every modification. Aside from the obvious benefit of being able to access old versions, this method can be a requirement when the database does not support transactions, as is the case for many NoSQL products. The use of versions can ensure that every client reads a consistent view of all entities even if the entities are updated between one read operation and the next.</p>
+<p>What about stale data? Old versions of entities can be erased after they are no longer needed (the exact meaning of which depends on the application itself). This should however be a completely separate process from the update described above. For example, a <i>garbage collector</i> could run once every night to clear versions of entities which are older than a certain time-limit and for which a new version exists.</p>
+<h2><a href="http://martinfowler.com/eaaDev/EventSourcing.html">Event sourcing</a></h2>
+<p>This pattern takes entity versioning one step further. Each entity has an associated log containing a list of updates. These updates can be <em>replayed</em> allowing the current state of the entity to be reconstructed from any previous state, including its initial creation. Updates are made simply by writing them to the log. To the extent that there is in this model a persisted copy of the entity itself, it need not be written with every update.</p>
+<p>This approach has the advantages of entity versioning -- that everything in sight is immutable -- and allows some interesting possibilities. For example, the use of updates rather than snapshots offers a natural solution to the problem of multiple instances competing to update the same entity. Each instance sees a particular version based on when it accessed the data. If one instance attempts to write an update after another has done so, it is doing so based possibly on an outdated state. If that update cannot be applied or would leave the entity in an inconsistent state, the update fails and the application can react accordingly.</p>
+<p>This approach allows the application to keep track of the <em>history</em> of an entity and not just its current state. It allows easy reconstruction of previous states of the entity, which can be useful for auditing. It can also easily identify how attributes of an entity have been changed -- for example, whether an attribute has its current value because it was deliberately set or because that was merely the default. An update process can take this into account, for example by changing an attribute to a new value only if it was not deliberately set to its current value.</p>
+<p>One obvious downside is the cost of reconstructing the entities every time they are accessed. To improve performance, an automated process can produce <em>snapshots</em> periodically by some rule, such as once a certain number of updates have been created on the same entity.</p>
+<p>One challenge with this approach is that it requires a careful definition of an update to each entity. In particular, if there are many ways to update an entity, this can become unwieldy. I would recommend this approach only for entities which have fairly limited possibilities for update.</p>
+<h2>Conclusion</h2>
+<p>There are also various ways to combine or modify these patterns. For example, entities manipulated with event sourcing can be cached and, when a request is processed, any new events which have appeared since the last snapshot can be applied. Or cached entities could be made immutable and the cache invalidated as soon as any of them is changed.</p>
+<p>There is no one best choice for all applications, or even for all entities in an application. Each entity should be examined and treated according to its needs and the advantages and disadvantages of each approach.</p>

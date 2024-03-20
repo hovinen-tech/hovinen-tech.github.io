@@ -1,0 +1,92 @@
+---
+layout: post
+title: Cross-team mandates
+date: 2021-01-03 20:36:40.000000000 +01:00
+type: post
+parent_id: '0'
+published: true
+password: ''
+status: publish
+categories: []
+tags: []
+meta:
+  _last_editor_used_jetpack: block-editor
+  timeline_notification: '1609706202'
+  _publicize_job_id: '52981748395'
+  _publicize_done_external: a:1:{s:7:"twitter";a:1:{i:12209128;s:60:"https://twitter.com/gruebelinchen/status/1345831472368918538";}}
+  _publicize_done_12172494: '1'
+  _wpas_done_12209128: '1'
+  publicize_twitter_user: gruebelinchen
+author:
+  login: hovinen
+  email: hovinen@gmail.com
+  display_name: Bradford Hovinen
+  first_name: Bradford
+  last_name: Hovinen
+permalink: "/2021/01/03/cross-team-mandates/"
+---
+
+<p>Jane is a tech lead on a team building a new, exciting product for her company. She's in her element: the project is technically challenging and the team is highly motivated. It's important to her that the team be able to focus on the project in order to maximize the chances of success.</p>
+
+<p>One day, she opens up the team backlog and finds a new ticket right at the top. It says only, "Replace dependency on frobnicator-service with flapulator-service". The author: her manager. She's concerned that the ticket is vaguely formulated and the -- in any case extensive -- required work will substantially distract the team from its roadmap. So she goes to her manager to ask what's going on. He says only that there is a new mandate to switch to the flapulator service because the frobnicator service is deemed insecure. Sorry, but it has to be done. Pronto. We'll pick up the project again later. Don't worry -- it's one week of work, max. Promised.</p>
+
+<p>She's really concerned about losing momentum on the project, but concedes that the work is probably necessary. So she and her team do their part and carefully replace the dependency in their domain. It turns out the required work is not well documented and the work estimates did not take into account that they would need to add tests to a huge pile of legacy code they inherited, so this work occupies the whole team for several weeks.</p>
+
+<p>After all that is done, she learns that the programme to replace frobnicator with flapulator has descended into chaos, with teams across the organization not having completed the required work by the deadline and other teams who claimed to have completed the work being asked to go back at the last minute to fix various issues they missed. Eventually, management throws up its arms and cancels the programme altogether, opting for the alternative to shore up the security of the frobnicator service.</p>
+
+<p>Meanwhile, the future of Jane's project is in doubt since -- as Jane feared -- the team lost its momentum and excitement while working on the mandated migration. Jane feels utterly dejected.</p>
+
+<h2>How not to establish a cross-team mandate</h2>
+
+<p><em>Cross-team mandates</em> such as what Jane experienced are often necessary in engineering organizations. They may be needed to enforce a policy, such as beefed up security standards, or to unlock progress in the organization's technical strategy. Or they may arise due to some unforeseen external factor, such as the deprecation of a service on which the stack depends.</p>
+
+<p>Jane's experience shows how <em>not</em> to establish a cross-team mandate. There was no transparency surrounding the decision and no opportunity for the technical leadership to offer feedback on the plan. No analysis of alternatives was apparent and the plan was presented as a done deal by management. They justified it by implicitly comparing their plan only with the alternative of <em>doing nothing</em> -- a clear case of blindness to alternatives. That there <em>was</em> a better alternative was demonstrated by management's eventually giving up and choosing that alternative, but only after an extraordinary waste of resources.</p>
+
+<p>I've experienced some combination of these phenomena many times. Management seems to fall into a pattern of thinking, "We're in charge, and we know best, so everyone else had better fall in line." But ham-fisted mandates quickly burn the trust engineers have in their leadership, and that lost trust is really hard to get back.</p>
+
+<p>Engineers whose project roadmaps are pulled out under them are not going to be happy, and many will resist the mandate. This may take the form of open challenge to the mandate, or it could have a more implicit (and sinister) form such as slow walking or sloppy implementation. Of course, the latter could be grounds for disciplinary action against the engineers in question, but that rarely improves the situation and is anyway predicated on being able to <em>prove</em> that they did these things deliberately, which is often impossible.</p>
+
+<p>When engineers do openly object to the mandate, the answer they get is all to often stonewalling. The decision has already been made, there's no option to revise it, the work has to be done. And can't you <em>please</em> just <em>be</em> <em>cooperative</em> for once?</p>
+
+<p>When a manager wants their report to do something, they have two options:</p>
+
+<ol>
+<li>Convince the report to do it.</li>
+<li>Order the report to do it.</li>
+</ol>
+
+<p>Most managers nowadays loathe giving direct orders -- with good reason. It's understood to be bad management style to rely too much on orders. They are a last resort when things are going off the rails. The one who gives an order is fully responsible for its consequences, including potential failure of the team's roadmap. Worse yet, giving to many orders to solid engineers is quick way to <em>lose</em> said engineers to other teams or other companies.</p>
+
+<p>But convincing a report means actually <em>convincing</em> them. It means selling them on the benefits of the work, not manipulating them with entreaties to <em>just cooperate</em> or baseless claims that <em>management must know best</em>. As an engineer, these attempts at manipulation do a lot to damage one's trust in management and make it much less likely that they will be able to truly convince me in the end.</p>
+
+<h2>A new mandate</h2>
+
+<p>A few months later, Jane is working on a new project to add audit logging to all services at the company. This requires that all services integrate with her new audit logging service and supply important data. It's a critical legal requirement, and the company could face legal liability if it's not implemented within the next three months. Her team has received from management a mandate to develop a solution and ensure that it is rolled out across all services at the company.</p>
+
+<p>Jane still has the frobnicator deprecation burned in her memory. She's determined to avoid a repeat of that fiasco. So she proceeds carefully.</p>
+
+<p>First, she organizes a meeting with all of the top tech leads and the product manager in charge of the audit log programme. They present the legal requirements to the tech leads and explain the implications for their services. Importantly, she focuses on the <em>what</em> and not the <em>how</em>. She invites them to share any ideas they have for implementation and asks them to let her know of any pitfalls they see in their domains.</p>
+
+<p>She puts together a document explaining the technical design of the implementation, including what work will be done by her team and what will be required of the other teams. The document shows the alternatives and explains the choices made. She shares this with the round of tech leads and asks for feedback.</p>
+
+<p>Her team sets to work building the service as well as tooling to make implementation as easy as feasible for the teams. They put together a set of scripts which modify services to enable audit logging and already cover 90% of the required cases. They carefully and publicly document the audit log service as well as the tooling, and explain what cases cannot be automated and what the teams must do in those cases.</p>
+
+<p>During implementation, she meets with each of the two dozen implementing teams to go through the project and the required work. She clears up any misconceptions about the programme and aligns with the teams on a timetable. The teams inform her of cases which they are not sure can be covered, and she is able to clear those cases up with them. She also prepares a project tracker with each of the required work packets and shares that with the teams in this meeting.</p>
+
+<p>When the time comes for the teams to start work, they have already planned the work packets and are confident that the required work will go smoothly. They're grateful that their concerns were heard. Most teams complete the work on time with few problems and minimal disruption to their roadmaps.</p>
+
+<h2>How to establish a mandate the right way</h2>
+
+<p>This example shows Jane taking pains to treat her fellow engineers with respect, to create alignment and to operate with the utmost transparency. These are the key criteria to establishing a mandate successfully.</p>
+
+<ul>
+<li>The stakeholders behind the mandate must first establish alignment about the problem to be solved and the need to solve it. They must explain why it is so critical that it may take precedence over the teams' own project roadmaps. Teams are normally quite understanding if there is a clear reason, such as a legal mandate. But they still want to be treated with respect.</li>
+<li>The programme leaders must be absolutely transparent about the programme, including the alternatives investigated and why they went with the one they did. If engineers see that there are cheaper alternatives but don't see any serious attempt to investigate them, they quickly lose trust.</li>
+<li>The team doing the central work must make life as easy as feasible for the implementing teams, though good documentation and tooling. They should avoid casting work they could do themselves more efficiently to the other teams.</li>
+<li>When feasible, and when the magnitude of the mandated work justifies it, the team managing the programme should meet individually with the teams implementing the required work packet to explain the required work and further establish alignment around it. They should use that opportunity to hear the teams' concerns and address them. This establishes trust and makes it much more likely that the teams will be cooperative. They should also use the opportunity to establish a time frame for completion of the required work to which the team can commit.</li>
+</ul>
+
+<h2>Conclusion</h2>
+
+<p>Forcing a mandate on engineers with little transparency leads to resentment and resistance. Manipulating them with psychological pressure makes them distrustful and uncooperative. That the work is truly important, even backed by a legal mandate, makes little difference. One gets the best results by treating one's engineers with respect and negotiating with them as equal partners.</p>
+

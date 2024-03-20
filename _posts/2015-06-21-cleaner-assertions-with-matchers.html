@@ -1,0 +1,209 @@
+---
+layout: post
+title: Cleaner assertions with matchers
+date: 2015-06-21 15:00:02.000000000 +02:00
+type: post
+parent_id: '0'
+published: true
+password: ''
+status: publish
+categories: []
+tags:
+- java
+- software development
+- testing
+meta:
+  _rest_api_published: '1'
+  _rest_api_client_id: "-1"
+  _publicize_job_id: '11892076334'
+author:
+  login: hovinen
+  email: hovinen@gmail.com
+  display_name: Bradford Hovinen
+  first_name: Bradford
+  last_name: Hovinen
+permalink: "/2015/06/21/cleaner-assertions-with-matchers/"
+---
+<p>Software developers should care at least as much about the quality of their test code as of their productive code. Ever been handed a project, told to make some changes, seen tests break, and pull your hair out in frustration trying to understand what's going on? Often the tests don't communicate their intention well because they were just written to provide a safety net and nothing more. They capture the existing behaviour of the application and help to keep it constant, but don't allow for changing requirements. Good developers should do better. When writing tests, think about the poor soul who will be staring at <em>your</em> code in 5 years after you are gone. You've already been there -- don't make their life hell.</p>
+
+<p>In this post I'm going to focus on one aspect of clean test code: the assertions. They serve more than the obvious purpose of determining whether the test passes or fails. Good assertions also <em>document</em> the meaning of the test, <em>communicate</em> the nature of the failure, and help to <em>diagnose</em> the reason for a failure. Good assertions share three characteristics in particular:</p>
+<ol>
+<li>They are written in a way which communicates the intention.</li>
+<li>They are focused, testing only what is relevant to the test at hand.</li>
+<li>The message which is generated on a failure carries all relevant information.</li>
+</ol>
+<p>The last point in particular deserves some further explanation. What features should the failure message have?</p>
+<ul>
+<li>It should show both the actual and expected behaviours so that the reader can compare them.</li>
+<li>It should show sufficient <em>context</em> to diagnose the problem. Supposing, for example, that an object has five fields containing strings and one of them is wrong, the message should identify which one was at fault.</li>
+<li>It should be <em>relevant</em> to the test. For example, if an object returned from the system under test does not have the desired property, the message should not be that some exception was thrown during execution of the test.</li>
+</ul>
+<p>Let's consider an example: we are writing a unit test for code which maps between two different representations of a collection of customers with addresses, say for translation between two external interfaces. The two address classes have a similar structure:</p>
+<pre>class Address {
+    private String houseNumber;
+    private String street;
+    private String postalCode;
+    private String city;
+    private String country;
+    private String phone;
+
+    // Getters for the above fields
+}
+
+class Customer {
+    private String name;
+    private Address address;
+    private CustomerType type;
+}
+
+enum CustomerType {
+    PRIVATE_CUSTOMER, BUSINESS_CUSTOMER, UNKNOWN
+}
+
+class ExternalCustomer {
+    private ExternalAddress address;
+    private ExternalCustomerType type;
+}
+
+class ExternalAddress {
+    private String name;
+    private String addressLine1;
+    private String addressLine2;
+    private String zip;
+    private String city;
+    private String state;
+    private String country;
+    private String phone;
+
+    // Getters and setters for the above fields
+}
+
+enum ExternalCustomerType {
+    PRIV, BUS, UNKNOWN
+}</pre>
+<p>Suppose the method under test converts a collection of customers of the first representation into the second:</p>
+<pre>List&lt;ExternalCustomer&gt; convertCustomers(List&lt;Customer&gt; customers)</pre>
+<p>How do we test this? Let's look at some possibilities and see what patterns and antipatterns we find.</p>
+<h2>Asserts on single fields</h2>
+<p>In the first example, we see a lot of asserts which involve reaching into the output, pulling out individual fields, and comparing them with expected values.</p>
+<pre>@Test
+public void convertCustomersShouldConvertListOfOneCustomer() {
+    // Create list with one customer and some relevant data
+
+    List result =
+            converter.convertCustomers(customers);
+
+    assertThat(result.get(0).getType(),
+            is(ExternalCustomerType.PRIV));
+    assertThat(result.get(0).getAddress().getName(),
+            is("Max Mustermann"));
+    assertThat(result.get(0).getAddress().getAddressLine1(),
+            is("Hauptstraße 62"));
+    assertThat(result.get(0).getAddress().getAddressLine2(),
+            is(""));
+    assertThat(result.get(0).getAddress().getZip(), is("12345");
+    assertThat(result.get(0).getAddress().getCountry(), is("DE");
+    assertThat(result.get(0).getAddress().getPhone(),
+            is("+49 89 23 98 50 87"));
+}</pre>
+<p>What's to be criticised here? First, consider what happens if, as a result of some bug, the street and street number are concatenated into the second line of the address and not the first line. What kind of failure message does one get? Something like the following:</p>
+<pre>Expected "Hauptstraße 62" but was "".</pre>
+<p>This does indeed clearly tell the reader the expected and actual values. However, it doesn't indicate in which field the problem was, nor in which element of the collection the problem occurred. That is, the entire context of the failure is missing. The reader must then hunt for the line in the source code to learn more about the failure.</p>
+<p>Now consider what happens if, due to some bug, the converter returns an empty list. Then the first field access throws an <a title="class in java.lang" href="https://docs.oracle.com/javase/8/docs/api/java/lang/IndexOutOfBoundsException.html">IndexOutOfBoundsException</a> due to the call to get(0). The message will just be a stacktrace of that exception with the corresponding line in the test code buried somewhere within. It provides no context at all about the nature of the failure. In fact, because it is triggered by an exception rather than a failure of comparison, it is precisely the same message as one would get if one used assertTrue rather than assertThat:</p>
+<pre>assertTrue(result.get(0).getType() == ExternalCustomerType.PRIV);</pre>
+<p>Finally, consider what happens when just one but multiple fields are incorrect. In this case, the test stops with the first assertion failure and does not check the remaining fields. This hides the scope of the problem from the reader.</p>
+<h2>Asserting equality on full objects</h2>
+<p>One simple attempt to improve on this is just to assert equality on the full ExternalCustomer object:</p>
+<pre>// Create expectedCustomer with expected data
+assertThat(result.get(0), is(expectedCustomer));</pre>
+<p>This improves on some, but not all, of the points mentioned above: one sees which fields are incorrect and just the values in those fields, and all fields will be compared so that the reader sees all fields which were incorrect rather than just one at a time. However, this does not solve the problem of reaching through a container. It also brings new problems:</p>
+<ul>
+<li>This requires that the equals method of ExternalCustomer be implemented in a way to compare the objects field by field, including a recursive comparison by subobjects. Thus the implementation of the test is bound to that of the object in a way which is not relevant to the functionality being tested. It could be that ExternalCustomer otherwise would not need an equals method or (worse yet) that its equals method should be defined differently -- say, by comparing just the name field. In the worst case, the equals method might be changed in response to a new requirement so that it checks fewer fields, in which case the test might succeed even when some fields are incorrect.</li>
+<li>What about the enumeration CustomerType? It's important to test the mapping of each value of the enumeration. It's convenient to do this in a separate test. But then there are two tests testing the mapping of the enumeration -- albeit one test only tests the mapping of one value.</li>
+</ul>
+<h2>Matchers</h2>
+<p>An alternative is to write a custom matcher. Here there are again a few variants, but we'll start by focusing on the comparison of just one property.</p>
+<pre>assertThat(result,
+    contains(externalCustomerWithType(
+        ExternalCustomerType.PRIV)));</pre>
+<p>Here we use the standard Hamcrest matcher contains, which takes a variable number of matchers as arguments and matches the result if and only if every matcher matches an element in the collection and the size of the collection equals the number of given matchers.</p>
+<p>The function externalCustomerWithType is defined (in Java versions 6 and 7) as follows:</p>
+<pre>public static 
+    FeatureMatcher&lt;ExternalCustomer, ExternalCustomerType&gt;
+        externalCustomerWithType(ExternalCustomerType type) {
+    return new FeatureMatcher&lt;&gt;(is(type), "type", "type") {
+        @Overrides
+        public ExternalCustomerType featureValueOf(
+                ExternalCustomer actual) {
+            return actual.getType();
+        }
+    }
+}</pre>
+<p>Here we are using Hamcrests <em>FeatureMatcher</em>, which allows extracting an arbitrary datum out of a value and matching it according to a given matcher. It is convenient for comparing fields or small sets of fields in objects.</p>
+<p>This approach has indeed a lot of boilerplate -- the lack of lambda expressions in Java versions up through 7 is to blame -- but it has some important advantages. Consider what happens if the test fails due to the type being wrong:</p>
+<pre>Expected &lt;Collection of &lt;type is PRIV&gt;&gt;
+but was [ExternalCustomer&lt;type=BUS,...&gt;]</pre>
+<p>Here you get the full context: not just the expected and actual values of that one field, but the name of the field, given as the two parameters "type" in the constructor to FeatureMatcher, as well as the full collection returned.</p>
+<p>Suppose instead that an empty collection is returned. Then the result will appear as follows:</p>
+<pre>Expected &lt;Collection of &lt;type is PRIV&gt;&gt;
+but was: []</pre>
+<p>Now an empty collection shows up as a normal test failure and not a random exception.</p>
+<p>Consider further the question of readability. Which of the two variants -- using a custom matcher and comparing equality on the field -- better expresses the intention of the test:</p>
+<pre>assertThat(result,
+    contains(externalCustomerWithType(
+        ExternalCustomerType.PRIV)));</pre>
+<p>or</p>
+<pre>assertThat(result.get(0).getType(),
+            is(ExternalCustomerType.PRIV));</pre>
+<p>I find the first to be more natural: we are asserting that the collection <em>contains</em> an ExternalCustomer with the <em>property</em> that its type is ExternalCustomerType.PRIV. It is irrelevant for the test, that the type be obtained by calling a getter on the first element of a list. The second variant fails to hide these details from the test, making the test more brittle (imagine what must be changed if the List were replaced by a Collection) and subtly harder to read.</p>
+<p>What about multiple properties? Here we can collect several such matchers together with the help of Hamcrest's matcher <em>allOf</em>, which takes a set of matchers and matches its input if and only if all of the given matchers match that input. I find it helpful for readability to create an alias <em>externalCustomerWithProperties</em> for this purpose and to correspondingly rename the matchers:</p>
+<pre>assertThat(result, contains(externalCustomerWithProperties(
+       type(ExternalCustomerType.PRIV),
+       name("Max Mustermann"),
+       address("Hauptstraße 62"),
+       ...);</pre>
+<p>This has an important advantage compared to the set of single assertions: all of the incorrect fields will be shown in the test output, so one immediately knows the scope of the failure. Unlike, however, the approach of testing equality of the whole object, we keep the test focused on only those fields which are relevant for it. We have the flexibility to test as few or as many fields as we deem appropriate in one test.</p>
+<h3>Matchers in Java 8</h3>
+<p>In Java 8 one can use lambda expressions to eliminate nearly all the boilerplate. First we define a kind of factory for FeatureMatcher.</p>
+<pre>public class PropertyMatcher&lt;T, U&gt; {
+    private final String propertyName;
+    private final Function&lt;T, U&gt; accessor;
+
+    public static &lt;T, U&gt; PropertMatcher&lt;T, U&gt;
+         property(String propertyName, Function&lt;T, U&gt; accessor) {
+        return new PropertyMatcher&lt;&gt;(propertyName, accessor);
+    }
+
+    public PropertyMatcher(String propertyName,
+            Function&lt;T, U&gt; accessor) {
+        this.propertyName = propertyName;
+        this.accessor = accessor;
+    }
+
+    public FeatureMatcher&lt;T, U&gt; matches(
+            Matcher&lt;? super U&gt; innerMatcher) {
+        return new FeatureMatcher&lt;&gt;(innerMatcher, propertyName,
+                propertyName) {
+            @Override
+            public U propertyValueOf(T actual) {
+                return accessor.apply(actual);
+            }
+        }
+    }
+}</pre>
+<p>With this we can redefine our function externalCustomerWithType as follows:</p>
+<pre>public FeatureMatcher&lt;ExternalCustomer, ExternalCustomerType&gt;
+        externalCustomerWithType(ExternalCustomerType type) {
+    return property("type", ExteralCustomer::getType)
+            .matches(is(type));
+}</pre>
+<p>We can even inline this method in the test itself without losing much readability, this eliminating nearly all bootstrap without losing any of the advantages of matchers.</p>
+<h2>Fest, JAssert, and Truth</h2>
+<p>The last few years have seen a wave of new assertion libraries which take a different approach: rather than relying on matchers, they provide a fluent interface for testing. For example, equality can be tested with the following:</p>
+<pre>assertThat(result.get(0).getType())
+    .isEqualTo(ExternalCustomerType.PRIV);</pre>
+<p>This has one major advantage vis-a-vis matchers: one can take advantage of autocompletion in modern IDEs such as Eclipse and IntelliJ so that one does not have to look up the name of the matcher one needs. When what one wants to do is within the scope of what the library provides, that's certainly an attractive advantage.</p>
+<p>There is, however, a downside: it's harder to extend such frameworks with domain-specific matchers. Each one offers a slightly different approach to doing so, but they all involve a bit more work (and more bootstrap) than writing one's own matchers and using the standard JUnit assertThat.</p>
+<p>My general view is that these libraries are a fine choice as long as one's requirements are within the bounds of what they provide, e.g. comparing equality on two relatively simple objects, assertions on collections of simple objects, and so on. As soon as one needs more complex assertions, such as "every element in this collection should satisfy the following property," one should switch to matchers. That said, there is no problem with using both approaches in the same program or even the same test class. Just use the best tool for the job.</p>
+<h2>Conclusion</h2>
+<p>Clean assertions are an integral part of clean, solid tests. Whatever approach you decide to use, you should take some time to consider the issues I brought up here and to choose the best tool for the job.</p>
