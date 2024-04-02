@@ -19,7 +19,7 @@ use std::{borrow::Cow, fmt::Display, sync::OnceLock};
 use tracing::error;
 
 const FROM_ADDRESS: &str = "Web contact form <noreply@hovinen.tech>";
-const TO_ADDRESS: &str = "Bradford Hovinen <hovinen@hovinen.tech>";
+const TO_ADDRESS: &str = "Bradford Hovinen <bradford@hovinen.tech>";
 
 const SMTP_URL: &str = "smtps://email-smtp.eu-north-1.amazonaws.com";
 const SMTP_CREDENTIALS_NAME: &str = "smtp-ses-credentials";

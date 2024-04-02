@@ -85,7 +85,7 @@ async fn sends_email_to_recipient() -> Result<()> {
         )
         .await,
         ok(ok(all!(
-            contains_substring("To: \"Bradford Hovinen\" <hovinen@hovinen.tech>"),
+            contains_substring("To: \"Bradford Hovinen\" <bradford@hovinen.tech>"),
             contains_substring("From: \"Web contact form\" <noreply@hovinen.tech>"),
             contains_substring("Reply-To: \"Arbitrary sender\" <email@example.com>"),
             contains_substring("Subject: Test"),
