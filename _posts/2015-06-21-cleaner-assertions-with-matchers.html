@@ -25,6 +25,7 @@ author:
 permalink: "/blog/2015/06/21/cleaner-assertions-with-matchers/"
 ---
 <p>Software developers should care at least as much about the quality of their test code as of their productive code. Ever been handed a project, told to make some changes, seen tests break, and pull your hair out in frustration trying to understand what's going on? Often the tests don't communicate their intention well because they were just written to provide a safety net and nothing more. They capture the existing behaviour of the application and help to keep it constant, but don't allow for changing requirements. Good developers should do better. When writing tests, think about the poor soul who will be staring at <em>your</em> code in 5 years after you are gone. You've already been there -- don't make their life hell.</p>
+<!--more-->
 
 <p>In this post I'm going to focus on one aspect of clean test code: the assertions. They serve more than the obvious purpose of determining whether the test passes or fails. Good assertions also <em>document</em> the meaning of the test, <em>communicate</em> the nature of the failure, and help to <em>diagnose</em> the reason for a failure. Good assertions share three characteristics in particular:</p>
 <ol>

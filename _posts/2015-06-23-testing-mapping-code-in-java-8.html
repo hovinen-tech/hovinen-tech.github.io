@@ -25,6 +25,7 @@ author:
 permalink: "/blog/2015/06/23/testing-mapping-code-in-java-8/"
 ---
 <p>My <a href="https://gruebelinchen.wordpress.com/2015/06/21/cleaner-assertions-with-matchers/">last post</a> covered the use of matchers with an example of code which maps from one data structure to another. In general, testing mapping code is pretty tedious. Every time a corresponding pair of fields is added to data structures, a new test is needed to verify that the fields are mapped properly. Depending on the specific case, more tests may be necessary to cover the cases where the value is not present one or the other data structure.</p>
+<!--more-->
 
 <p>The addition of lambda expressions in Java 8 raises new possibilities for reducing this pain. In this post I'll show how to test the mapping in such a way that each new field introduces a minimum of additional bootstrap, while retaining all of the advantages of clear, focused tests with matchers.</p>
 <p>Let's first review the mapping problem from the last post. We start with some classes which are to be mapped.</p>

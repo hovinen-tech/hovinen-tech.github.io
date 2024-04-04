@@ -27,6 +27,7 @@ author:
 permalink: "/blog/2018/03/07/decoupling-youre-gonna-need-it/"
 ---
 <p>One of the key properties of <a href="https://www.amazon.de/Clean-Architecture-Craftsmans-Software-Structure/dp/0134494164">Clean Architecture</a> (also known as <a href="http://alistair.cockburn.us/Hexagonal+architecture">hexagonal architecture</a>, <a href="http://www.dossier-andreas.net/software_architecture/ports_and_adapters.html">ports and adapters</a>, or <a href="http://jeffreypalermo.com/blog/the-onion-architecture-part-1/">onion architecture</a>) is that the domain model of an application or service is <em>decoupled</em> from all external integrations, including the persistence mechanism. (The latter decoupling also goes by the name <em><a href="http://deviq.com/persistence-ignorance/">persistence ignorance</a></em>.) This means that all external integrations are hidden behind interfaces, so that there is no <em>source code</em> dependency from the business logic or domain model to any external system.</p>
+<!--more-->
 
 <p>Some developers hear this and object with <a href="https://en.wikipedia.org/wiki/You_aren%27t_gonna_need_it">YAGNI</a>: adding extra interfaces increases complexity and is a code smell, they claim. No interface should ever exist unless there are at least two implementations <em>used in production</em>, they say.</p>
 <p>Of course, YAGNI is a real concern, but I claim that this kind of objection is not its intention.</p>

@@ -24,6 +24,7 @@ permalink: "/blog/2023/06/06/demystifying-trait-generics-in-rust/"
 ---
 
 <p>One of the things I've always found mysterious about the Rust type system is the distinction between <a href="https://doc.rust-lang.org/book/ch10-01-syntax.html#generic-data-types">generic type parameters</a> and <a href="https://doc.rust-lang.org/book/ch19-03-advanced-traits.html#specifying-placeholder-types-in-trait-definitions-with-associated-types">associated types</a>. They both allow one to define a trait with a placeholder type. When does one choose one over the other?</p>
+<!--more-->
 
 
 <p>I recently ran into a surprising bug in<a href="http://crates.io/crates/googletest"> GoogleTest Rust</a>. The investigation of the cause and the eventual solution helped to shed some light on the difference between these concepts. I've tried to distill my learnings here.</p>
