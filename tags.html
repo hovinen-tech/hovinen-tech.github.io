@@ -1,0 +1,39 @@
+---
+permalink: /blog/tags/
+---
+
+<!doctype html>
+<html lang="en">
+  {% include head.html current_page_title="Tags -- Blog -- " %}
+
+  <body class="container">
+    {% include navbar.html %}
+
+    <main role="main" class="container blog-container">
+      <h1>Blog &ndash; Tags</h1>
+
+      <section id="content" class="section">
+			  {% capture tags %}
+          {% for tag in site.tags %}{{ tag[0] }}:{% endfor %}
+				{% endcapture %}
+				{% assign sorted_tags = tags | strip | split: ':' | sort_natural %}
+        {% for tag_name in sorted_tags %}
+          <div class="category-entry">
+            <h3 class="tag-head"><a name="{{ tag_name | slugize }}">{{ tag_name }}</a></h3>
+            <a name="{{ tag_name | slugize }}"></a>
+            {% for post in site.tags[tag_name] %}
+              <article class="archive-item">
+                <h4><a href="{{ site.baseurl }}{{ post.url }}">{{post.title}}</a></h4>
+              </article>
+            {% endfor %}
+          </div>
+        {% endfor %}
+      </section>
+    </main>
+
+    {% include footer.html %}
+
+    {% include scroll-to-top.html %}
+    {% include scripts.html %}
+  </body>
+</html>

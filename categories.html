@@ -1,0 +1,39 @@
+---
+permalink: /blog/categories/
+---
+
+<!doctype html>
+<html lang="en">
+  {% include head.html current_page_title="Categories -- Blog -- " %}
+
+  <body class="container">
+    {% include navbar.html %}
+
+    <main role="main" class="container blog-container">
+      <h1>Bradford Hovinen &ndash; Blog &ndash; Categories</h1>
+
+      <section id="content" class="section">
+			  {% capture categories %}
+          {% for category in site.categories %}{{ category[0] }}:{% endfor %}
+				{% endcapture %}
+				{% assign sorted_categories = categories | strip | split: ':' | sort_natural %}
+        {% for category_name in sorted_categories %}
+          <div class="category-entry">
+            <h3 class="category-head"><a name="{{ category_name | slugize }}">{{ category_name | capitalize }}</a></h3>
+            <a name="{{ category_name | slugize }}"></a>
+            {% for post in site.categories[category_name] %}
+            <article class="archive-item">
+              <h4><a href="{{ site.baseurl }}{{ post.url }}">{{post.title}}</a></h4>
+            </article>
+            {% endfor %}
+          </div>
+        {% endfor %}
+      </section>
+    </main>
+
+    {% include footer.html %}
+
+    {% include scroll-to-top.html %}
+    {% include scripts.html %}
+  </body>
+</html>
