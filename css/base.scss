@@ -74,8 +74,16 @@ main {
 
 .photo-about {
     border-radius: 10px;
-    float: right;
+    float: both;
     margin: 20px;
+}
+
+@media only screen and (min-width: 43.75rem) {
+    .photo-about {
+        border-radius: 10px;
+        float: right;
+        margin: 20px;
+    }
 }
 
 .testimonial {
