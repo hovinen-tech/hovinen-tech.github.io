@@ -74,8 +74,8 @@ main {
 
 .photo-about {
     border-radius: 10px;
-    float: both;
-    margin: 20px;
+    display: block;
+    margin: 20px auto 20px auto;
 }
 
 @media only screen and (min-width: 43.75rem) {
