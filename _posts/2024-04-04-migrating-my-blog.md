@@ -3,7 +3,7 @@ layout: post
 title: Migrating my blog
 categories: [announcements]
 tags: [blog]
-permalink: "/2024/04/04/migrating-my-blog/"
+permalink: "/blog/2024/04/04/migrating-my-blog/"
 ---
 I have decided to move all entries on my personal blog related to software development over to my
 [professional website](https://hovinen.tech). This puts my technical content in one place and makes
