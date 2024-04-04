@@ -3,7 +3,6 @@
 
 #banner {
     .item {
-        margin-left: 10px;
         width: 100%;
     }
 
@@ -23,7 +22,18 @@
     display: flex;
     justify-content: center;
     padding-bottom: 20px;
-    margin-top: 4.5rem;
+}
+
+@media only screen and (min-width: 43.75rem) {
+    #banner {
+        .item {
+            margin-left: 10px;
+        }
+    }
+
+    .small-links {
+        margin-top: 4.5rem;
+    }
 }
 
 .small-banner-link {
