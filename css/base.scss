@@ -78,7 +78,7 @@ main {
     margin: 20px auto 20px auto;
 }
 
-@media only screen and (min-width: 43.75rem) {
+@media only screen and (min-width: 720px) {
     .photo-about {
         border-radius: 10px;
         float: right;
@@ -97,7 +97,7 @@ main {
     }
 }
 
-@media only screen and (min-width: 43.75rem) {
+@media only screen and (min-width: 720px) {
     .testimonial {
         box-shadow: 0 5px 8px grey;
         margin: 20px;
