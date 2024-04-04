@@ -1,4 +1,7 @@
 <nav class="navbar navbar-expand-lg navbar-default">
+  {% if include.current_page != "index" %}
+  <span class="banner-name d-none d-lg-block">Bradford Hovinen</span>
+  {% endif %}
   <button class="navbar-toggler d-lg-none" type="button" data-bs-toggle="collapse" data-bs-target="#mainNavigation" aria-controls="mainNavigation" aria-expanded="false" aria-label="Toggle navigation">
     <span class="navbar-toggler-icon"></span>
   </button>
