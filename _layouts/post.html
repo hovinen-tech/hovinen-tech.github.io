@@ -12,7 +12,7 @@
       <p><a href="/blog/">Back to blog index</a></p>
 
       <h1>{{ page.title }}</h1>
-      <p class="page-date"><i>{{ page.date | date_to_long_string }}</i></p>
+      <p class="page-date"><i>Bradford Hovinen | {{ page.date | date_to_long_string }}</i></p>
 
       <main role="main" class="container">
         <div id="post">
@@ -20,13 +20,12 @@
         </div>
 
         <div class="post-categories">
-          Categories:&nbsp;
+          Category:&nbsp;
           {% for category in page.categories %}
           <a href="{{site.baseurl}}/blog/categories/#{{category|slugize}}">{{category|capitalize}}</a>
           {% unless forloop.last %}&nbsp;{% endunless %}
           {% endfor %}
-        </div>
-        <div class="post-categories">
+          &nbsp;|&nbsp;
           Tags:&nbsp;
           {% for tag in page.tags %}
           <a href="{{site.baseurl}}/blog/tags/#{{tag|slugize}}">{{tag}}</a>
