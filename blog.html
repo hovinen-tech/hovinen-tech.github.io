@@ -8,13 +8,16 @@
   <body class="container">
     {% include navbar.html current_page="blog" %}
 
-    <main role="main" class="container">
+    <main role="main" class="container blog-container">
       <h1>Blog</h1>
 
       <section id="content" class="section">
         {% for post in site.posts %}
-          <h2><span>{{ post.date | date_to_string }}</span> &raquo; <a href="{{ post.url }}">{{ post.title }}</a></h2>
-					{{ post.excerpt }}
+          <div class="blog-index-entry">
+            <h2><a href="{{ post.url }}">{{ post.title }}</a></h2>
+            <p><i>{{ post.date | date_to_string }}</i></p>
+					  {{ post.excerpt }}
+          </div>
         {% endfor %}
       </section>
     </main>
