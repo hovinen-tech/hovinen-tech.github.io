@@ -7,6 +7,7 @@ permalink: "/blog/2024/04/08/clean-code-horrible-performance-so-what/"
 ---
  
 Last year, Casey Muratori published a [blog post](https://www.computerenhance.com/p/clean-code-horrible-performance) and YouTube video '"Clean" Code, horrible performance', generating a great deal of discussion. The article and its discussion struck a nerve with me. Reflecting on it, I have refined my own thinking about what Clean Code really means and why it is important.
+<!--more-->
 
 I find the the tone and messaging implied in Muratori's article problematic. I have witnessed software developers who stubbornly defend clever but utterly incomprehensible code in the face of complaints from their teammates. They often justify their position with spurious claims about "performance" (often without actually _measuring_ it). But CPU-bound performance is rarely a major business concern, while the ability to understand and reason about the code almost always is. Obsessing over the former while dismissing the latter is a tragic inversion of priority.
 ## Muratori's position
