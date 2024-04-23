@@ -28,6 +28,7 @@
 #
 exclude:
   - backend
+  - dprint.json
 #   - .sass-cache/
 #   - .jekyll-cache/
 #   - gemfiles/
@@ -41,3 +42,9 @@ exclude:
 
 excerpt_separator: <!--more-->
 
+kramdown:
+  math_engine: katex
+
+assets:
+  sources:
+     - css/katex/fonts

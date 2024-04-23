@@ -3,41 +3,42 @@
 
 <!doctype html>
 <html lang="en">
-  {% include head.html current_page_title="Blog -- " %}
+{% include head.html current_page_title="Blog -- " %}
 
-  <body class="container">
-    {% include navbar.html english_only=true %}
+<body class="container">
+  {% include navbar.html english_only=true %}
 
-    <div class="blog-container">
-      <p><a href="/blog/">Back to blog index</a></p>
+  <div class="blog-container">
+    <p><a href="/blog/">Back to blog index</a></p>
 
-      <h1>{{ page.title }}</h1>
-      <p class="page-date"><i>{{ page.date | date_to_long_string }}</i></p>
+    <h1>{{ page.title }}</h1>
+    <p class="page-date"><i>{{ page.date | date_to_long_string }}</i></p>
 
-      <main role="main" class="container">
-        <div id="post">
+    <main role="main" class="container">
+      <div id="post">
         {{ content }}
-        </div>
+      </div>
 
-        <div class="post-categories">
-          Category:&nbsp;
-          {% for category in page.categories %}
-          <a href="{{site.baseurl}}/blog/categories/#{{category|slugize}}">{{category|capitalize}}</a>
-          {% unless forloop.last %}&nbsp;{% endunless %}
-          {% endfor %}
-          &nbsp;|&nbsp;
-          Tags:&nbsp;
-          {% for tag in page.tags %}
-          <a href="{{site.baseurl}}/blog/tags/#{{tag|slugize}}">{{tag}}</a>
-          {% unless forloop.last %}&nbsp;{% endunless %}
-          {% endfor %}
-        </div>
-      </main>
+      <div class="post-categories">
+        Category:&nbsp;
+        {% for category in page.categories %}
+        <a href="{{site.baseurl}}/blog/categories/#{{category|slugize}}">{{category|capitalize}}</a>
+        {% unless forloop.last %}&nbsp;{% endunless %}
+        {% endfor %}
+        &nbsp;|&nbsp;
+        Tags:&nbsp;
+        {% for tag in page.tags %}
+        <a href="{{site.baseurl}}/blog/tags/#{{tag|slugize}}">{{tag}}</a>
+        {% unless forloop.last %}&nbsp;{% endunless %}
+        {% endfor %}
+      </div>
+    </main>
 
-      {% include footer.html %}
-    </div>
+    {% include footer.html %}
+  </div>
 
-    {% include scroll-to-top.html %}
-    {% include scripts.html %}
-  </body>
+  {% include scroll-to-top.html %}
+  {% include scripts.html %}
+</body>
+
 </html>
