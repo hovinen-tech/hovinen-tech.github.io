@@ -2,136 +2,150 @@
 ---
 
 body {
-    background: none;
+  background: none;
 }
 
 body.disable-scrolling {
-    overflow: hidden;
+  overflow: hidden;
 }
 
 main {
-    padding: 5px;
-}
-
-.blog-container {
-    max-width: 1024px;
-    margin-left: auto;
-    margin-right: auto;
-}
-
-.blog-container .container {
-    margin-bottom: 25px;
+  padding: 5px;
 }
 
 .blog-index-entry {
-    margin-bottom: 50px;
+  margin-bottom: 50px;
 }
 
-.blog-container h2 {
+.blog-container {
+  max-width: 1024px;
+  margin-left: auto;
+  margin-right: auto;
+
+  .container {
+    margin-bottom: 25px;
+  }
+
+  h2 {
     font-size: 1.75rem;
-}
+  }
 
-.blog-container h3 {
+  h3 {
     font-size: 1.5rem;
-}
+  }
 
-.blog-container h4 {
+  h4 {
     font-size: 1.25rem;
-}
+  }
 
-.blog-container h5 {
+  h5 {
     font-size: 1.1rem;
     font-weight: bold;
-}
+  }
 
-.blog-container h6 {
+  h6 {
     font-size: 1.1rem;
+  }
+
+  main {
+    p,figure {
+      img {
+        display: block;
+        margin: 0 auto;
+      }
+
+      figcaption {
+        font-size: small;
+        text-align: center;
+      }
+    }
+  }
 }
 
 .section {
-    display: block;
-    position: relative;
-    margin-bottom: 50px;
+  display: block;
+  position: relative;
+  margin-bottom: 50px;
 }
 
 .required {
-    opacity: 0;
-    position: absolute;
-    top: 0;
-    left: 0;
-    height: 0;
-    width: 0;
-    z-index: -1;
+  opacity: 0;
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 0;
+  width: 0;
+  z-index: -1;
 }
 
 #back-to-top-button {
-    border-radius: 25px;
-    bottom: 20px;
-    display: none;
-    position: fixed;
-    right: 20px;
+  border-radius: 25px;
+  bottom: 20px;
+  display: none;
+  position: fixed;
+  right: 20px;
 }
 
 .photo-about {
-    border-radius: 10px;
-    display: block;
-    margin: 20px auto 20px auto;
+  border-radius: 10px;
+  display: block;
+  margin: 20px auto 20px auto;
 }
 
 @media only screen and (min-width: 720px) {
-    .photo-about {
-        border-radius: 10px;
-        float: right;
-        margin: 20px;
-    }
+  .photo-about {
+    border-radius: 10px;
+    float: right;
+    margin: 20px;
+  }
 }
 
 .testimonial {
-    border: solid 1px lightgray;
-    border-radius: 10px;
-    margin: 5px;
-    padding: 10px;
+  border: solid 1px lightgray;
+  border-radius: 10px;
+  margin: 5px;
+  padding: 10px;
 
-    .citation {
-        text-align: right;
-    }
+  .citation {
+    text-align: right;
+  }
 }
 
 @media only screen and (min-width: 720px) {
-    .testimonial {
-        box-shadow: 0 5px 8px grey;
-        margin: 20px;
-    }
+  .testimonial {
+    box-shadow: 0 5px 8px grey;
+    margin: 20px;
+  }
 }
 
 #my-services li {
-    margin-bottom: 10px;
+  margin-bottom: 10px;
 }
 
 .contact-form {
-    margin-bottom: 20px;
+  margin-bottom: 20px;
 }
 
 .page-date {
-    font-size: x-large;
+  font-size: x-large;
 }
 
 .post-categories {
-    font-size: small;
+  font-size: small;
 }
 
 .category-entry {
-    margin-top: 25px;
-    margin-bottom: 50px;
+  margin-top: 25px;
+  margin-bottom: 50px;
 }
 
 blockquote {
-    background-color: #eee;
-    border-radius: 10px;
-    margin: 10px;
-    padding: 10px;
+  background-color: #eee;
+  border-radius: 10px;
+  margin: 10px;
+  padding: 10px;
 }
 
 blockquote p:last-of-type {
-    margin-bottom: 0;
+  margin-bottom: 0;
 }
