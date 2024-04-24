@@ -72,6 +72,18 @@ main {
   }
 }
 
+div.highlight {
+  background: #eeeeee;
+  border-radius: 10px;
+  box-shadow: 0 5px 8px grey;
+  margin: 10px 10px 15px 10px;
+  padding: 5px;
+}
+
+pre.highlight {
+  margin: 5px;
+}
+
 .section {
   display: block;
   position: relative;
