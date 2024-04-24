@@ -171,3 +171,8 @@ blockquote {
 blockquote p:last-of-type {
   margin-bottom: 0;
 }
+
+.mermaid svg {
+  display: block;
+  margin: 0 auto;
+}
