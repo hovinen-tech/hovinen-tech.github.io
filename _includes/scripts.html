@@ -7,3 +7,11 @@
 <script type="module" src="/js/friendlycaptcha/widget.module.min.js" async defer></script>
 <script nomodule src="/js/friendlycaptcha/widget.min.js" async defer></script>
 <script src="/js/scroll-to-top.js"></script>
+<script type="">
+  for (link of document.links) {
+    if (link.hostname != window.location.hostname) {
+      link.target = '_blank';
+      link.className += ' external';
+    }
+  }
+</script>

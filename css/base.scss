@@ -48,7 +48,9 @@ main {
   }
 
   main {
-    p,figure {
+
+    p,
+    figure {
       img {
         display: block;
         margin: 0 auto;
@@ -58,6 +60,14 @@ main {
         font-size: small;
         text-align: center;
       }
+    }
+
+    a.external {
+      background-image: url(/images/external-link.svg);
+      background-position: center right;
+      background-repeat: no-repeat;
+      background-size: 0.857em;
+      padding-right: 1em;
     }
   }
 }
