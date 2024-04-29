@@ -2,7 +2,7 @@
 layout: post
 title: "Machine Learning in Rust, Part 2: The Ecosystem"
 categories: [walkthroughs]
-tags: [rust, machine learning]
+tags: [Rust, machine learning]
 permalink: "/blog/2024/04/29/machine-learning-in-rust-part-2/"
 ---
 
