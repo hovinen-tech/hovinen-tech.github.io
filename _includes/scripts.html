@@ -7,6 +7,7 @@
 <script type="module" src="/js/friendlycaptcha/widget.module.min.js" async defer></script>
 <script nomodule src="/js/friendlycaptcha/widget.min.js" async defer></script>
 <script src="/js/scroll-to-top.js"></script>
+{% if page.has_math %}
 <script>
 MathJax = {
   tex: {
@@ -20,6 +21,7 @@ MathJax = {
 <script type="text/javascript" id="MathJax-script" async
   src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js">
 </script>
+{% endif %}
 <script type="">
   for (link of document.links) {
     if (link.hostname != window.location.hostname) {

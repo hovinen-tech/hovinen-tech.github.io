@@ -5,6 +5,7 @@ categories: [walkthroughs]
 tags: [Rust, machine learning]
 permalink: "/blog/2024/04/27/machine-learning-in-rust-part-1/"
 og_image: "https://hovinen.tech/assets/2024/04/function-graph-with-gradient.png"
+has_math: true
 ---
 
 This is part one of a three-part series on my experiments working with machine learning in Rust and
