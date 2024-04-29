@@ -43,7 +43,7 @@ exclude:
 excerpt_separator: <!--more-->
 
 kramdown:
-  math_engine: katex
+  math_engine: mathjax
 
 assets:
   sources:
