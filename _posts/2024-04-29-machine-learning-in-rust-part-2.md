@@ -246,7 +246,7 @@ space. Thus I did not use rurel in these experiments.
 I tried out various solutions and settled on [dfdx](https://crates.io/crates/dfdx) in the end. It
 has a relatively straightforward API with everything one needs for basic reinforcement learning.
 While it currently lacks WGPU support for GPU-accelerated machine learning, that support is in the
-works. All in all, dfdx provides te right balance for this project.
+works. All in all, dfdx provides the right balance for this project.
 
 The Rust machine learning ecosystem is surprisingly well-developed. It's especially interesting that
 there are two well-developed Rust-native crates specifically for deep learning. It'll be interesting
