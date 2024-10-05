@@ -28,7 +28,7 @@ struct LambdaResponsePayload {
 
 #[googletest::test]
 #[tokio::test]
-async fn sends_email_to_recipient() -> Result<()> {
+async fn sends_email_to_recipient() {
     setup_logging();
     let config = LocalStackConfig::new().await;
     let fake_friendlycaptcha =
@@ -66,8 +66,8 @@ async fn sends_email_to_recipient() -> Result<()> {
         .send()
         .await;
 
-    verify_that!(output, ok(anything()))?;
-    verify_that!(
+    expect_that!(output, ok(anything()));
+    expect_that!(
         serde_json::from_slice(&output.unwrap().payload.unwrap().into_inner()),
         ok(matches_pattern!(LambdaResponsePayload {
             status_code: some(eq(303)),
@@ -77,8 +77,8 @@ async fn sends_email_to_recipient() -> Result<()> {
             ),
             error_message: none(),
         }))
-    )?;
-    verify_that!(
+    );
+    expect_that!(
         timeout(
             Duration::from_secs(10),
             fake_smtp_server.last_mail_content()
@@ -91,7 +91,8 @@ async fn sends_email_to_recipient() -> Result<()> {
             contains_substring("Subject: Test"),
             contains_substring("Test message")
         )))
-    )
+    );
+    config.stop().await;
 }
 
 async fn setup_lambda(config: &LocalStackConfig) -> (aws_sdk_lambda::Client, String) {

@@ -1,24 +1,25 @@
-use std::{process::Command, sync::OnceLock};
-
 use aws_config::{BehaviorVersion, SdkConfig};
 use log::info;
 use serde::Deserialize;
-use testcontainers::{clients::Cli, core::WaitFor, Container, GenericImage, RunnableImage};
+use std::process::Command;
+use testcontainers::{
+    core::{Mount, WaitFor},
+    runners::AsyncRunner,
+    ContainerAsync, GenericImage, ImageExt,
+};
 
 pub const LOCALSTACK_PORT: u16 = 4566;
-
-static DOCKER: OnceLock<Cli> = OnceLock::new();
 
 pub struct LocalStackConfig {
     pub aws_host_from_subject: String,
     pub sdk_config: SdkConfig,
-    container: Option<Container<'static, GenericImage>>,
+    container: Option<ContainerAsync<GenericImage>>,
 }
 
 impl LocalStackConfig {
     pub async fn new() -> Self {
         let (aws_endpoint_url_from_test, aws_host_from_subject, container) =
-            Self::get_aws_endpoint_url();
+            Self::get_aws_endpoint_url().await;
         info!("Using AWS endpoint {aws_endpoint_url_from_test}");
         info!("Host from within system under test {aws_host_from_subject}");
         let sdk_config = aws_config::defaults(BehaviorVersion::latest())
@@ -32,7 +33,13 @@ impl LocalStackConfig {
         }
     }
 
-    fn get_aws_endpoint_url() -> (String, String, Option<Container<'static, GenericImage>>) {
+    pub async fn stop(self) {
+        if let Some(container) = self.container {
+            container.stop().await.expect("Stopping container");
+        }
+    }
+
+    async fn get_aws_endpoint_url() -> (String, String, Option<ContainerAsync<GenericImage>>) {
         if std::env::var("USE_RUNNING_LOCALSTACK").is_ok() {
             info!("Using already running LocalStack due to environment variable USE_RUNNING_LOCALSTACK");
             let localstack_container_ip = Self::get_container_ip_from_running_localstack();
@@ -44,7 +51,7 @@ impl LocalStackConfig {
         } else {
             info!("Starting own LocalStack instance");
             let (aws_endpoint_url_from_test, aws_host_from_subject, container) =
-                Self::run_localstack_returning_endpoint_url();
+                Self::run_localstack_returning_endpoint_url().await;
             (
                 aws_endpoint_url_from_test,
                 aws_host_from_subject,
@@ -69,32 +76,33 @@ impl LocalStackConfig {
         localstack_status.container_ip
     }
 
-    fn run_localstack_returning_endpoint_url() -> (String, String, Container<'static, GenericImage>)
-    {
-        let container = DOCKER.get_or_init(|| Cli::default()).run(
-            RunnableImage::from(
-                GenericImage::new("localstack/localstack", "2.3.2")
-                    .with_volume("/var/run/docker.sock", "/var/run/docker.sock")
-                    .with_wait_for(WaitFor::Healthcheck),
-            )
+    async fn run_localstack_returning_endpoint_url(
+    ) -> (String, String, ContainerAsync<GenericImage>) {
+        let image = GenericImage::new("localstack/localstack", "2.3.2")
+            .with_wait_for(WaitFor::healthcheck())
             .with_network("bridge")
-            .with_env_var(("DEBUG", "1")),
-        );
+            .with_mount(Mount::bind_mount(
+                "/var/run/docker.sock",
+                "/var/run/docker.sock",
+            ))
+            .with_env_var("DEBUG", "1");
+        let container = image.start().await.expect("LocalStack started");
         (
             format!(
                 "http://localhost:{}",
-                container.get_host_port_ipv4(LOCALSTACK_PORT)
+                container
+                    .get_host_port_ipv4(LOCALSTACK_PORT)
+                    .await
+                    .expect("Port should be present")
             ),
-            format!("{}", container.get_bridge_ip_address()),
+            format!(
+                "{}",
+                container
+                    .get_bridge_ip_address()
+                    .await
+                    .expect("IP address should be present")
+            ),
             container,
         )
-    }
-}
-
-impl Drop for LocalStackConfig {
-    fn drop(&mut self) {
-        if let Some(c) = self.container.as_ref() {
-            c.stop()
-        }
     }
 }
