@@ -715,6 +715,7 @@ mod tests {
     fn setup_environment() {
         FakeSmtpServer::setup_environment();
         FakeFriendlyCaptcha::setup_environment();
+        let _ = rustls::crypto::aws_lc_rs::default_provider().install_default();
     }
 
     #[derive(Serialize)]
