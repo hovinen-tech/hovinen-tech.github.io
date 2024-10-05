@@ -17,9 +17,9 @@
 # you will see them accessed via {{ site.title }}, {{ site.email }}, and so on.
 # You can create any custom variable you would like, and they will be accessible
 # in the templates via {{ site.myvariable }}.
-name: Bradford Hovinen's blog
-description: Bradford Hovinen's blog
-url: https://hovinen.tech/blog
+name: Bradford Hovinen
+description: Bradford Hovinen, freelance IT consultant and software engineer
+url: https://hovinen.tech
 feed_items: 10
 feed_update_period: daily
 feed_update_frequency: 1
