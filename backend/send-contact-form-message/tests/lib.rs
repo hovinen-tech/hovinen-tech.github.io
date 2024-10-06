@@ -45,6 +45,8 @@ async fn sends_email_to_recipient() {
     let (lambda_client, function_name) = setup_lambda(&config).await;
     let payload = clean_payload(
         r#"{
+            "httpMethod": "POST",
+            "requestContext": {"httpMethod": "POST"},
             "headers": {
                 "Content-Type": "application/json"
             },
