@@ -6,7 +6,8 @@ use async_once_cell::OnceCell;
 use error_page::render_error_page;
 use friendlycaptcha::FriendlyCaptchaVerifier;
 use lambda_http::{
-    http::StatusCode, run, service_fn, Body, Error, Request, RequestPayloadExt, Response,
+    http::{header, StatusCode},
+    run, service_fn, Body, Error, Request, RequestPayloadExt, Response,
 };
 use lettre::{
     message::{header::ContentType, Mailbox},
@@ -74,7 +75,10 @@ impl<SecretRepositoryT: SecretRepository> ContactFormMessageHandler<SecretReposi
         match self.process_message(message).await {
             Ok(language) => Ok(Response::builder()
                 .status(StatusCode::SEE_OTHER)
-                .header("Location", Self::create_success_url(language.as_str()))
+                .header(
+                    header::LOCATION,
+                    Self::create_success_url(language.as_str()),
+                )
                 .body("".into())
                 .unwrap()),
             Err(error) => {
