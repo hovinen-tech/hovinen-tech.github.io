@@ -22,7 +22,7 @@ const FAKE_FRIENDLYCAPTCHA_SECRET: &str = "arbitrary secret";
 #[serde(rename_all = "camelCase")]
 struct LambdaResponsePayload {
     status_code: Option<u32>,
-    headers: HashMap<String, String>,
+    multi_value_headers: HashMap<String, Vec<String>>,
     error_message: Option<String>,
 }
 
@@ -73,9 +73,9 @@ async fn sends_email_to_recipient() {
         serde_json::from_slice(&output.unwrap().payload.unwrap().into_inner()),
         ok(matches_pattern!(LambdaResponsePayload {
             status_code: some(eq(303)),
-            headers: has_entry(
+            multi_value_headers: has_entry(
                 "location".to_string(),
-                eq("https://hovinen.tech/email-sent.html")
+                elements_are![eq("https://hovinen.tech/email-sent.html")]
             ),
             error_message: none(),
         }))
