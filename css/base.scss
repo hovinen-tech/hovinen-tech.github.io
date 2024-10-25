@@ -69,6 +69,24 @@ main {
       background-size: 0.857em;
       padding-right: 1em;
     }
+
+    .note {
+      background-color: #e6f0fc;
+      border-radius: 5px;
+      margin: 30px 0;
+      padding: 20px 20px 10px 20px;
+      position: relative;
+
+      h5 {
+        color: #0b6edd;
+
+        .icon {
+          display: inline-block;
+          height: 1.1rem;
+          width: 1.1rem;
+        }
+      }
+    }
   }
 }
 
