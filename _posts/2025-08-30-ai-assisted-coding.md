@@ -1,7 +1,7 @@
 ---
 layout: post
 title: "On AI-assisted programming"
-categories: [software development]
+categories: [software-development]
 tags: [ai, software engineering]
 has_mermaid: false
 ---
