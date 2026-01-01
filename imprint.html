@@ -3,63 +3,49 @@
 
 <!doctype html>
 <html lang="en">
-  {% include head.html current_page_title="Imprint -- " %}
+{% include head.html current_page_title="Imprint -- " %}
 
-  <body class="container">
-    {% include navbar.html current_page="imprint" %}
+<body class="container">
+  <main role="main" class="container">
+    <h1>Imprint / Impressum</h1>
 
-    <main role="main" class="container">
-      <h1>Imprint</h1>
+    <section id="content" class="section">
+      <h2>Information according to § 5 TMG</h2>
 
-      <section id="content" class="section">
-        <h2>Information according to § 5 TMG</h2>
+      <p>
+        Bradford Hovinen<br>
+        Maistraße 23<br>
+        80337 München
+      </p>
 
-        <p>
-          Bradford Hovinen<br>
-          Maistraße 23<br>
-          80337 München
-        </p>
+      <h2>Contact</h2>
 
-        <p><b>VAT identification number:</b> DE364473853</p>
+      <ul>
+        <li>Email: <a href="mailto:info@hovinen.tech">info@hovinen.tech</a>.</li>
+      </ul>
+    </section>
 
-        <h2>Contact</h2>
+    <section id="content" class="section">
+      <h2>Angaben gemäß § 5 TMG</h2>
 
-        <p>
-          Please use the <a href="index.html#contact">contact form</a>.
-        </p>
+      <p>
+        Bradford Hovinen<br>
+        Maistraße 23<br>
+        80337 München
+      </p>
 
-        <ul>
-          <li>Email: <a href="mailto:info@hovinen.tech">info@hovinen.tech</a>.</li>
-        </ul>
+      <h2>Kontakt</h2>
 
-        <h2>Details of professional liability insurance</h2>
+      <ul>
+        <li>E-Mail: <a href="mailto:info@hovinen.tech">info@hovinen.tech</a>.</li>
+      </ul>
+    </section>
+  </main>
 
-        <p>
-          <strong>Name and registered office of the insurer:</strong><br>
-          Markel Insurance SE<br>
-          Sophienstr. 26<br>
-          80333 München
-        </p>
+  {% include footer.html current_page="imprint" %}
 
-        <p>
-          <strong>Area of validity of the insurance:</strong><br>
-          Worldwide
-        </p>
+  {% include scroll-to-top.html %}
+  {% include scripts.html %}
+</body>
 
-        <h2>Consumer dispute resolution/universal arbitration board</h2>
-
-        <p>
-          We are not willing or obligated to participate in dispute resolution proceedings before a
-          consumer arbitration board.
-        </p>
-
-        <p>Source: <a href="https://www.e-recht24.de">https://www.e-recht24.de</a></p>
-      </section>
-    </main>
-
-    {% include footer.html current_page="imprint" %}
-
-    {% include scroll-to-top.html %}
-    {% include scripts.html %}
-  </body>
 </html>
